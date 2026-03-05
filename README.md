@@ -4,9 +4,18 @@
 
 Werd is a unified stack for managing your online presence across social media platforms, technical blogs, discussion forums, and community channels. It centralizes cross-posting, scheduling, monitoring, sentiment tracking, and notification routing into a single self-hosted deployment — no paid SaaS dependencies.
 
+**Core design goals:**
+- **Single-box deployable** — runs on a single machine via `docker-compose.yml`, on any network (cloud VPS, residential behind NAT, or local-only)
+- **Podman-first** — targets Podman as the primary container runtime, with Docker support as secondary
+- **Scales out when needed** — each sub-service can be independently scaled in a distributed Kubernetes environment (tested locally with k3s)
+- **Multi-project isolation** — supports multiple fully-isolated projects, each with its own channels, platform connections, keywords, notification preferences, and team members
+- **Fully open source** — every component is self-hostable with an OSI-approved license (the only external dependency is an optional LLM API)
+
 ## What It Does
 
-- **Cross-post everywhere from one place** — schedule and publish to LinkedIn, X, Bluesky, Reddit, Mastodon, Discord, YouTube, and 10+ more platforms from a single dashboard
+- **Manage everything from one UI** — a custom React-based web dashboard provides a single pane of glass for all projects, services, alerts, and publishing across the entire stack
+- **Run multiple isolated projects** — each project has its own keyword sets, monitored sources, platform connections, notification channels, and team members with role-based access
+- **Cross-post everywhere from one place** — schedule and publish to LinkedIn, X, Bluesky, Reddit, Mastodon, Discord, YouTube, and 10+ more platforms
 - **Monitor mentions and keywords** — track brand mentions, competitor activity, and relevant discussions across Reddit, Hacker News, Lobsters, the web, news sites, and RSS feeds
 - **Route notifications intelligently** — funnel all alerts into organized team chat channels with push notifications for high-priority items
 - **Draft AI-assisted responses** — automatically generate contextual response drafts for human review and approval
@@ -17,89 +26,741 @@ Werd is a unified stack for managing your online presence across social media pl
 ## Architecture
 
 ```
-                        +-------------------+
-                        |   Mattermost      |  Notification hub
-                        |   (team chat)     |  (channels per concern)
-                        +--------^----------+
-                                 |
-              +------------------+------------------+
-              |                  |                  |
-     +--------+-------+  +------+--------+  +------+--------+
-     | changedetect.  |  |     n8n       |  |    Postiz     |
-     | io + RSSHub    |  | (workflow     |  | (cross-post   |
-     | (monitoring)   |  |  automation)  |  |  & schedule)  |
-     +--------+-------+  +------+--------+  +------+--------+
-              |                 |                    |
-     +--------v-------+  +-----v-----+       +-----v---------+
-     | Reddit (PRAW)  |  | LLM API   |       | LinkedIn, X,  |
-     | HN (API/RSS)   |  | (draft    |       | Bluesky,      |
-     | Web (scrape)   |  |  assist)  |       | Reddit,       |
-     | GitHub (hooks) |  +-----------+       | Mastodon,     |
-     +-----------------+                     | YouTube, ...  |
-                                             +---------------+
+                          +------------------------+
+                          |     Werd Dashboard     |  React + TypeScript SPA
+                          |  (multi-project mgmt)  |  (projects, alerts, publish, config)
+                          +-----------+------------+
+                                      |
+                          +-----------v------------+
+                          |     Werd API Server    |  Go backend
+                          |  (orchestration, auth, |  (chi + pgx + sqlc)
+                          |   multi-project state) |
+                          +-----------+------------+
+                                      |
+                    +-----------------+-----------------+
+                    |                 |                 |
+                    v                 v                 v
+          +--------+------+  +-------+-------+  +------+-------+
+          |   Caddy       |  |  PostgreSQL   |  |    Redis     |
+          |  (reverse     |  | (werd core +  |  |  (caching,   |
+          |   proxy, TLS) |  |  per-service) |  |   queues)    |
+          +--------+------+  +-------+-------+  +------+-------+
+                   |                 |                  |
+    +--------------+----+------------+--+---------------+--------+
+    |         |         |        |      |        |      |        |
++---v---+ +---v---+ +---v--+ +--v---+ +v-----+ +v---+ +v-----+ |
+|Postiz | |Active-| |Matter| | ntfy | |change| |RSS | | Folo | |
+|(cross-| |pieces | |most  | |      | |detect| |Hub | |      | |
+| post) | |(work- | |(chat)| |      | |.io   | |    | |      | |
++---+---+ | flow) | +------+ +------+ +------+ +----+ +------+ |
+    |     +---+---+                                             |
+    |         |         +-----------+     +------------------+  |
+    v         v         |  LLM API  |     | LinkedIn, X,     |  |
++---+---+ +---+---+    | (optional |     | Bluesky, Reddit, |  |
+|Tempor-| |       |    |  drafting)|     | Mastodon, YT ... |  |
+| al    | |       |    +-----------+     +------------------+  |
++-------+ +-------+                                            |
+              +------------------------------------------------+
+              |
+    +---------+---------+    +-----------+
+    | Plausible CE      |    | ClickHouse|
+    | (web analytics)   +--->| (events)  |
+    +-------------------+    +-----------+
+
+    [Residential / NAT access]
+    +-------------+          +-------------+
+    | FRP client  | -------> | FRP server  |  (on relay VPS)
+    | (home box)  |  tunnel  | + Caddy     |  ($3-5/mo VPS)
+    +-------------+          +-------------+
 ```
 
 ## Stack
 
-Every component is open source and self-hosted via Docker. The only external dependency is an LLM API for AI-assisted response drafting (optional).
+Every component is open source (OSI-approved licenses) and fully self-hostable. The only external dependency is an LLM API for AI-assisted response drafting (optional).
 
-| Component | Tool | Role | License | GitHub Stars |
-|---|---|---|---|---|
-| Cross-posting & scheduling | [Postiz](https://github.com/gitroomhq/postiz-app) | Publish to 17+ platforms from one dashboard | AGPL-3.0 | 27K+ |
-| Workflow automation | [n8n](https://github.com/n8n-io/n8n) | Connect services, build automation pipelines | Sustainable Use | 60K+ |
-| Team chat & notifications | [Mattermost](https://github.com/mattermost/mattermost) | Notification hub with organized channels | AGPL-3.0 | 32K+ |
-| Web & page monitoring | [changedetection.io](https://github.com/dgtlmoon/changedetection.io) | Track changes on any web page, keyword alerts | Apache-2.0 | 30K+ |
-| RSS feed generation | [RSSHub](https://github.com/DIYgod/RSSHub) | Turn any website into an RSS feed (1000+ routes) | MIT | 41K+ |
-| RSS reader / dashboard | [Folo](https://github.com/RSSNext/Folo) | AI-powered feed reader for manual browsing | GPL-3.0 | 37K+ |
-| Push notifications | [ntfy](https://github.com/binwiederhier/ntfy) | Instant push alerts to phone/desktop via HTTP | Apache-2.0 | 20K+ |
-| Web analytics | [Plausible](https://github.com/plausible/analytics) | Privacy-friendly analytics (no cookies) | AGPL-3.0 | 22K+ |
-| Reddit monitoring | Custom bot using [PRAW](https://github.com/praw-dev/praw) | Stream subreddits for keyword matches | BSD | — |
-| Hacker News monitoring | Custom poller using [HN API](https://github.com/HackerNews/API) | Poll new stories/comments for keyword matches | Public API | — |
-| Blog syndication | [cross-post CLI](https://github.com/shahednasser/cross-post) + GitHub Actions | Auto-publish to Dev.to and Hashnode | MIT | — |
+### Custom Components (This Project)
+
+| Component | Tech | Role |
+|---|---|---|
+| **Werd API Server** | Go (chi, pgx, sqlc) | Core backend — multi-project orchestration, auth, service aggregation, webhook ingestion, background jobs |
+| **Werd Dashboard** | React + TypeScript (Vite) | SPA frontend — project management, unified alert feed, publishing, configuration, analytics |
+
+### Third-Party Services
+
+| Component | Tool | Role | License |
+|---|---|---|---|
+| Reverse proxy | [Caddy](https://github.com/caddyserver/caddy) | Automatic HTTPS, reverse proxy, subdomain routing | Apache-2.0 |
+| Cross-posting & scheduling | [Postiz](https://github.com/gitroomhq/postiz-app) | Publish to 17+ platforms from one dashboard | AGPL-3.0 |
+| Workflow automation | [Activepieces](https://github.com/activepieces/activepieces) | Connect services, build automation pipelines | MIT (Community Edition) |
+| Team chat & notifications | [Mattermost](https://github.com/mattermost/mattermost) | Notification hub with organized channels | AGPL-3.0 |
+| Web & page monitoring | [changedetection.io](https://github.com/dgtlmoon/changedetection.io) | Track changes on any web page, keyword alerts | Apache-2.0 |
+| RSS feed generation | [RSSHub](https://github.com/DIYgod/RSSHub) | Turn any website into an RSS feed (1000+ routes) | MIT |
+| RSS reader | [Folo](https://github.com/RSSNext/Folo) | AI-powered feed reader for manual browsing | GPL-3.0 |
+| Push notifications | [ntfy](https://github.com/binwiederhier/ntfy) | Instant push alerts to phone/desktop via HTTP | Apache-2.0 |
+| Web analytics | [Plausible CE](https://github.com/plausible/analytics) | Privacy-friendly analytics (no cookies) | AGPL-3.0 |
+| Reddit monitoring | Custom bot using [PRAW](https://github.com/praw-dev/praw) | Stream subreddits for keyword matches | BSD |
+| Hacker News monitoring | Custom poller using [HN API](https://github.com/HackerNews/API) | Poll new stories/comments for keyword matches | Public API |
+| Blog syndication | [cross-post CLI](https://github.com/shahednasser/cross-post) | Auto-publish to Dev.to and Hashnode | MIT |
+
+### Infrastructure
+
+| Component | Tool | Role | License |
+|---|---|---|---|
+| Database | [PostgreSQL 17](https://github.com/postgres/postgres) | Shared DB server — Werd core DB + per-service databases | PostgreSQL License |
+| Cache / queue | [Redis 7](https://github.com/redis/redis) | Shared cache, session store, and job queue backend | BSD-3-Clause |
+| Event store | [ClickHouse](https://github.com/ClickHouse/ClickHouse) | High-performance analytics DB for Plausible events | Apache-2.0 |
+| Workflow engine | [Temporal](https://github.com/temporalio/temporal) | Durable workflow execution for Postiz | MIT |
+| Tunnel (residential) | [FRP](https://github.com/fatedier/frp) | Expose services from behind NAT/CGNAT to the internet | Apache-2.0 |
+
+> **Note on n8n:** The original design considered [n8n](https://github.com/n8n-io/n8n) for workflow automation. n8n uses a "Sustainable Use License" which is **not OSI-approved open source**. We use [Activepieces](https://github.com/activepieces/activepieces) (MIT) instead. If you prefer n8n, it is self-hostable and can be swapped in.
+
+> **Note on Activepieces multi-tenancy:** The Activepieces Community Edition (MIT) operates as a single project. True multi-tenancy (per-project flows, API keys, quotas) requires the commercial Enterprise/Embed license. The Werd API Server handles project isolation at the orchestration layer — scoping flows by naming convention and managing per-project webhook routing — so Community Edition works for most deployments. Enterprise is only needed if you require fully isolated Activepieces projects with per-tenant UIs.
 
 ### How the pieces connect
 
 **Monitoring pipeline:**
-1. **Reddit** — PRAW bot streams submissions and comments from target subreddits, matches against keyword lists, sends alerts via webhook
+1. **Reddit** — PRAW bot streams submissions and comments from target subreddits, matches against per-project keyword lists, sends alerts via webhook to Werd API
 2. **Hacker News** — Custom poller checks new stories/comments against keywords via the public HN API; RSSHub generates keyword-filtered HN feeds
 3. **Web/News** — changedetection.io watches web pages (competitor blogs, procurement sites, news) for keyword-triggered changes
 4. **RSS** — RSSHub turns platforms without native RSS into feeds; changedetection.io monitors feeds for keyword matches
-5. **GitHub** — Native webhooks push events (stars, issues, PRs, discussions) directly
+5. **GitHub** — Native webhooks push events (stars, issues, PRs, discussions) to Werd API
 
 **Routing pipeline:**
-1. All monitoring sources send webhooks to **n8n**
-2. n8n routes alerts to organized **Mattermost** channels (`#mentions`, `#competitors`, `#github`, etc.)
-3. High-priority alerts also push to **ntfy** for instant mobile/desktop notifications
-4. n8n optionally calls an LLM API to draft contextual responses for human review
+1. All monitoring sources send webhooks to the **Werd API Server**, which tags alerts with the matching project(s)
+2. Werd API routes alerts to **Activepieces** flows for processing, or directly to **Mattermost** channels (per-project team → per-concern channel)
+3. High-priority alerts also push to **ntfy** (per-project topic) for instant mobile/desktop notifications
+4. Activepieces optionally calls an LLM API to draft contextual responses, posted back to Mattermost for human review
+5. The **Werd Dashboard** aggregates alerts from all sources into a unified, filterable, per-project feed
 
 **Publishing pipeline:**
-1. Content is created and scheduled in **Postiz** (or triggered via n8n)
-2. Postiz publishes to all connected social platforms simultaneously
-3. Blog posts are syndicated to Dev.to and Hashnode via **cross-post CLI** in CI/CD
-4. **Plausible** tracks resulting traffic and referral sources
+1. Content is created and scheduled via the **Werd Dashboard** (which wraps the Postiz API) or directly in Postiz
+2. Postiz publishes to all connected social platforms simultaneously (per-project platform connections)
+3. Blog posts are syndicated to Dev.to and Hashnode via **cross-post CLI**
+4. **Plausible** tracks resulting traffic and referral sources (per-project site)
+
+## Technical Details
+
+### Multi-Project Architecture
+
+Multi-project isolation is a core design principle. The **Werd API Server** is the orchestration layer that maps each project to isolated resources across all sub-services:
+
+| Sub-Service | Per-Project Isolation Strategy |
+|---|---|
+| Postiz | One Postiz **organization** per project. Each org has its own social connections, scheduled posts, and team members. (Limitation: OAuth app credentials are instance-wide; users can only belong to one org.) |
+| Activepieces | CE: Flows namespaced by project via naming convention (`proj_{id}_*`) and webhook URL routing. Enterprise: One Activepieces **project** per Werd project. |
+| Mattermost | One Mattermost **team** per project. Channels within the team mirror concern types (`#mentions`, `#competitors`, `#github`, etc.). Bot user per team. |
+| ntfy | One **topic prefix** per project (e.g., `werd-proj1-high`, `werd-proj1-github`). ACL rules restrict access per project. |
+| changedetection.io | Watches **tagged** by project ID. Webhook URLs include project routing info. |
+| RSSHub | Feed URLs parameterized per project (keyword sets). |
+| Plausible | One **site** per project. Shared API key scoped by site. |
+| Reddit/HN monitors | Per-project keyword sets and subreddit lists, managed by Werd API, stored in PostgreSQL. |
+
+The Werd API Server is the source of truth for project configuration. It provisions and deprovisions sub-service resources via their APIs when projects are created/modified/deleted.
+
+### Data Model & PostgreSQL
+
+PostgreSQL is the right choice for Werd's core data store:
+
+- **Relational model** maps naturally to the project → resources hierarchy (projects, users, memberships, configurations, alerts, posts)
+- **JSONB columns** provide flexibility for service-specific configuration without schema changes (each sub-service has different config shapes)
+- **Row-level security (RLS)** can enforce project isolation at the database level, preventing cross-project data leaks even in case of application bugs
+- **LISTEN/NOTIFY** enables real-time event propagation to the API server (e.g., new alert → push to connected dashboard clients via WebSocket)
+- **Already required** by Postiz, Activepieces, Mattermost, and Plausible — one PostgreSQL instance with multiple databases reduces operational overhead
+
+**Werd core database schema (conceptual):**
+
+```
+projects
+  id              UUID PK
+  name            TEXT
+  slug            TEXT UNIQUE
+  settings        JSONB          -- project-wide preferences
+  created_at      TIMESTAMPTZ
+
+users
+  id              UUID PK
+  email           TEXT UNIQUE
+  password_hash   TEXT
+  name            TEXT
+  created_at      TIMESTAMPTZ
+
+project_members
+  project_id      UUID FK → projects
+  user_id         UUID FK → users
+  role            ENUM (owner, admin, member, viewer)
+  UNIQUE(project_id, user_id)
+
+service_instances                 -- maps projects to sub-service resources
+  id              UUID PK
+  project_id      UUID FK → projects
+  service         ENUM (postiz, activepieces, mattermost, ntfy, changedetect, plausible, ...)
+  external_id     TEXT           -- org ID, team ID, site ID, etc. in the sub-service
+  config          JSONB          -- service-specific configuration
+  status          ENUM (provisioning, active, error, deprovisioning)
+
+monitor_sources
+  id              UUID PK
+  project_id      UUID FK → projects
+  type            ENUM (reddit, hn, web, rss, github)
+  config          JSONB          -- subreddits, URLs, feed URLs, repo/org, etc.
+  enabled         BOOLEAN
+
+keywords
+  id              UUID PK
+  project_id      UUID FK → projects
+  keyword         TEXT
+  match_type      ENUM (exact, substring, regex)
+
+platform_connections
+  id              UUID PK
+  project_id      UUID FK → projects
+  platform        TEXT           -- linkedin, x, bluesky, reddit, mastodon, ...
+  credentials     JSONB          -- encrypted at rest (pgcrypto or app-level)
+  enabled         BOOLEAN
+
+alerts
+  id              UUID PK
+  project_id      UUID FK → projects
+  source_type     ENUM (reddit, hn, web, rss, github)
+  source_id       TEXT           -- external ID (reddit post ID, HN item ID, etc.)
+  title           TEXT
+  content         TEXT
+  url             TEXT
+  matched_keywords TEXT[]
+  severity        ENUM (low, medium, high, critical)
+  status          ENUM (new, seen, triaged, dismissed, responded)
+  created_at      TIMESTAMPTZ
+  UNIQUE(project_id, source_type, source_id)  -- deduplication
+
+notification_rules
+  id              UUID PK
+  project_id      UUID FK → projects
+  source_type     ENUM (reddit, hn, web, rss, github, all)
+  min_severity    ENUM (low, medium, high, critical)
+  destination     ENUM (mattermost, ntfy, email, webhook)
+  config          JSONB          -- channel name, topic, email addr, URL, etc.
+
+published_posts
+  id              UUID PK
+  project_id      UUID FK → projects
+  content         TEXT
+  platforms       TEXT[]
+  scheduled_at    TIMESTAMPTZ
+  published_at    TIMESTAMPTZ
+  postiz_post_id  TEXT           -- reference to Postiz
+  status          ENUM (draft, scheduled, publishing, published, failed)
+
+audit_log
+  id              BIGSERIAL PK
+  project_id      UUID FK → projects
+  user_id         UUID FK → users (nullable for system actions)
+  action          TEXT
+  details         JSONB
+  created_at      TIMESTAMPTZ
+```
+
+**Database layout (single PostgreSQL instance):**
+
+| Database | Owner | Purpose |
+|---|---|---|
+| `werd` | Werd API Server | Core project/user/alert/config data (schema above) |
+| `postiz` | Postiz | Organizations, integrations, scheduled posts |
+| `activepieces` | Activepieces | Flows, connections, executions |
+| `mattermost` | Mattermost | Teams, channels, messages, users |
+| `plausible` | Plausible | Sites, goals, configuration (events are in ClickHouse) |
+| `temporal` | Temporal | Workflow engine state (required by Postiz) |
+
+### Backend Architecture (Go)
+
+The Werd API Server is written in **Go**, chosen for this workload because:
+
+- **Low resource footprint** — 15-30 MB RSS, 5-15 MB container image (static binary in distroless). Critical when sharing a single box with 10+ other services.
+- **Native concurrency** — goroutines are the natural fit for the core loop: poll 10 service APIs concurrently, ingest webhooks, run background sync/dedup jobs, serve HTTP — all in one process without a job framework.
+- **Best PostgreSQL integration** — pgx v5 is the strongest PostgreSQL driver across ecosystems, with full LISTEN/NOTIFY, JSONB, arrays, COPY protocol support. Paired with sqlc for compile-time-checked SQL with generated Go types.
+- **Single binary deployment** — no runtime, no `node_modules`, no V8 engine. One static binary, one minimal Dockerfile.
+- **Mattermost native client** — the official Go client library is maintained by the Mattermost team.
+
+**Go stack:**
+
+| Concern | Tool |
+|---|---|
+| HTTP routing | [chi](https://github.com/go-chi/chi) |
+| PostgreSQL | [pgx v5](https://github.com/jackc/pgx) + [sqlc](https://github.com/sqlc-dev/sqlc) |
+| Migrations | [goose](https://github.com/pressly/goose) |
+| Background jobs | Goroutines + `time.Ticker`; [river](https://github.com/riverqueue/river) for persistent job queue |
+| Config | [envconfig](https://github.com/kelseyhightower/envconfig) |
+| WebSocket | `nhooyr.io/websocket` (real-time alert push to dashboard) |
+| API client codegen | [oapi-codegen](https://github.com/oapi-codegen/oapi-codegen) (for services with OpenAPI specs) |
+| OpenAPI spec generation | [swag](https://github.com/swaggo/swag) (consumed by frontend via openapi-typescript) |
+| Container | Multi-stage: `golang:1.23` builder → `gcr.io/distroless/static` runtime |
+
+**Key responsibilities:**
+- Authentication (local accounts, session management, optional OIDC/SSO)
+- Multi-project orchestration (provision/deprovision sub-service resources per project)
+- Webhook ingestion (receive alerts from monitoring bots, tag with project, deduplicate, persist)
+- Service aggregation (proxy/aggregate data from Postiz, Mattermost, Activepieces, Plausible APIs)
+- Background sync (poll services for state changes, sync to Werd DB)
+- Real-time push (WebSocket to dashboard clients for live alert feed)
+- Notification routing (evaluate rules, fan out to Mattermost channels / ntfy topics)
+
+### Frontend Architecture (React + TypeScript)
+
+The Werd Dashboard is a **React + TypeScript SPA**, built with Vite:
+
+| Concern | Tool |
+|---|---|
+| Framework | [React 19](https://react.dev) + TypeScript |
+| Build | [Vite](https://vitejs.dev) |
+| Routing | [React Router](https://reactrouter.com) |
+| Data fetching | [TanStack Query](https://tanstack.com/query) |
+| State management | [Zustand](https://github.com/pmndrs/zustand) |
+| Styling | [Tailwind CSS](https://tailwindcss.com) |
+| Component library | [shadcn/ui](https://ui.shadcn.com) |
+| API types | Auto-generated from Go backend's OpenAPI spec via [openapi-typescript](https://github.com/openapi-ts/openapi-typescript) |
+| Real-time | WebSocket connection to Werd API for live alerts |
+| Container | Multi-stage: `node:22-alpine` builder → `caddy:alpine` serving static files (or served by Werd API) |
+
+**Dashboard views:**
+- **Project switcher** — top-level navigation between isolated projects
+- **Overview** — per-project service health, recent alerts, upcoming scheduled posts
+- **Alert feed** — unified, filterable, searchable alert list with triage actions (dismiss, flag, respond)
+- **Publishing** — create/schedule/manage posts across platforms (wraps Postiz API per project)
+- **Monitoring config** — manage keywords, subreddits, watched URLs, RSS feeds per project
+- **Platforms** — connect/disconnect social media accounts per project
+- **Notifications** — configure routing rules, channel mappings, priority thresholds per project
+- **Workflows** — view/trigger Activepieces flows, execution history
+- **Analytics** — embedded Plausible stats, cross-platform engagement metrics
+- **Settings** — user management, roles, project settings, service configuration
+
+### Container Runtime
+
+**Podman (primary):**
+- All services defined in a single `docker-compose.yml` compatible with `podman-compose`
+- Runs rootless by default — no daemon, no root privileges required
+- Services can be grouped into Podman pods for shared networking
+- For users who prefer `docker-compose`, the Podman socket provides full compatibility
+
+**Docker (secondary):**
+- The compose file is compatible with Docker / Docker Compose out of the box
+- Docker support is a secondary target — tested but not the primary development environment
+
+### Kubernetes Strategy
+
+Kubernetes is a **good fit for scaling Werd** beyond a single box, but adds significant complexity (~750 MB RAM overhead for k3s, steep learning curve). The strategy is **compose-first, Kubernetes when you need to scale**.
+
+**Why Kubernetes works for Werd:**
+- Each sub-service is a separate Deployment, scalable independently (e.g., scale Reddit monitors without scaling Mattermost)
+- Helm charts exist for all major infrastructure components (PostgreSQL via CloudNativePG/Bitnami, Redis via Bitnami, ClickHouse via Altinity operator, Mattermost official charts, Plausible and ntfy community charts)
+- Namespace-based isolation can map to projects for additional separation (RBAC, NetworkPolicies, ResourceQuotas)
+- Rolling updates, self-healing, and health check-driven restarts built in
+- Horizontal Pod Autoscaler (HPA) for automatic scaling based on load
+
+**k3s for local/single-node testing:**
+- Lightweight single-binary Kubernetes distribution
+- ~500-768 MB RAM baseline overhead (acceptable on 16+ GB machines, avoid on <8 GB)
+- Use SQLite backend (default), disable unused components (Traefik if using Caddy, ServiceLB, metrics-server)
+- `k3s server --disable traefik --disable servicelb`
+
+**Migration path from compose to Kubernetes:**
+1. Use [Kompose](https://kompose.io) to generate initial manifests from `docker-compose.yml` as scaffolding
+2. Manually refine: add probes, resource limits, Secrets, Ingress rules
+3. Migrate incrementally — stateless services first, databases last
+4. Use operators for stateful services (CloudNativePG for PostgreSQL, Redis operator)
+5. Package as Helm chart for reproducible deployments
+
+**When to use what:**
+
+| Scenario | Recommended Runtime |
+|---|---|
+| Single box, getting started | `podman-compose` / `docker-compose` |
+| Single box, want self-healing | k3s (single node) |
+| Multiple boxes, need scaling | k3s cluster or full Kubernetes |
+| Production, high availability | Kubernetes with managed control plane or multi-master k3s |
+
+### Networking & Access Modes
+
+Werd is designed to run on any network — cloud VPS, residential, or local-only.
+
+**Internal networking:**
+
+All services communicate over an internal container network (`werd-net`). Only the reverse proxy exposes ports to the host:
+
+| Service | Internal Port | External Access |
+|---|---|---|
+| Caddy | 80, 443 | Host-mapped (entry point for all HTTP traffic) |
+| Werd Dashboard | 3000 | Via Caddy: `werd.yourdomain.com` |
+| Werd API | 8090 | Via Caddy: `api.yourdomain.com` |
+| Postiz | 4200 | Via Caddy: `postiz.yourdomain.com` |
+| Activepieces | 8080 | Via Caddy: `flow.yourdomain.com` |
+| Mattermost | 8065 | Via Caddy: `chat.yourdomain.com` |
+| changedetection.io | 5000 | Via Caddy: `monitor.yourdomain.com` |
+| RSSHub | 1200 | Via Caddy: `rss.yourdomain.com` |
+| Folo | 2233 | Via Caddy: `reader.yourdomain.com` |
+| ntfy | 2586 | Via Caddy: `ntfy.yourdomain.com` |
+| Plausible | 8000 | Via Caddy: `analytics.yourdomain.com` |
+| PostgreSQL | 5432 | Internal only |
+| Redis | 6379 | Internal only |
+| ClickHouse | 8123 | Internal only |
+| Temporal | 7233 | Internal only |
+
+**Access modes:**
+
+| Mode | Network Type | How It Works |
+|---|---|---|
+| **Cloud / VPS** | Public IP, open ports | Caddy binds to 80/443 directly, automatic Let's Encrypt TLS via HTTP-01 challenge. Standard DNS A record pointing to VPS IP. |
+| **Residential** | Behind NAT / CGNAT | FRP client on home box tunnels to FRP server on a small relay VPS ($3-5/mo). Caddy on the relay VPS handles TLS and proxies traffic through the tunnel. DNS points to relay VPS IP. |
+| **Local-only** | LAN access only | Caddy serves with self-signed certs or HTTP-only. Access via `http://local-ip:port`. No domain required. |
+
+**Residential deployment (FRP tunnel):**
+
+```
+[Internet] → [Relay VPS: Caddy + FRP Server] → [FRP Tunnel] → [Home Box: Werd Stack]
+```
+
+- **[FRP](https://github.com/fatedier/frp)** (Apache-2.0, 105K+ stars) is the most mature, battle-tested open-source tunnel
+- FRP client runs as a container in the Werd compose stack
+- FRP server + Caddy run on a minimal relay VPS (512 MB RAM, $3-5/mo)
+- Supports TCP, UDP, HTTP, HTTPS, and WebSocket
+- Alternative: [Pangolin](https://github.com/fosrl/pangolin) (AGPL-3.0) provides an all-in-one tunnel + proxy + dashboard but uses Traefik internally instead of Caddy
+
+**Kubernetes networking:**
+- Ingress controller (Caddy Ingress or nginx-ingress) replaces standalone Caddy
+- Use DNS-01 challenge for Let's Encrypt behind NAT (not HTTP-01, which requires inbound port 80)
+- k3s: use `--disable traefik` and deploy your own Ingress controller for consistency with compose setup
+
+### Storage & Volumes
+
+Persistent data is stored in named volumes mounted under `./data/` on the host:
+
+```
+werd/
+  data/
+    postgres/        # All PostgreSQL databases
+    redis/           # Redis persistence (AOF)
+    clickhouse/      # ClickHouse event data (Plausible)
+    temporal/        # Temporal workflow state
+    mattermost/      # Chat history, file uploads
+    postiz/          # Scheduled posts, media uploads
+    activepieces/    # Workflow definitions, execution state
+    changedetect/    # Watch configurations, page snapshots
+    plausible/       # Analytics configuration
+    ntfy/            # Notification cache
+    caddy/           # TLS certificates, Caddy config
+    werd/            # Werd API local state (uploaded assets, etc.)
+```
+
+For Kubernetes, each volume maps to a PersistentVolumeClaim (PVC). Use a StorageClass appropriate for your environment (local-path for single-node k3s, network-attached storage for multi-node).
+
+### Configuration
+
+All service configuration is driven through environment variables in a single `.env` file:
+
+```bash
+# ── Domain & Access Mode ──
+WERD_DOMAIN=yourdomain.com
+WERD_EMAIL=admin@yourdomain.com         # For Let's Encrypt
+WERD_ACCESS_MODE=cloud                  # cloud | residential | local
+
+# ── Residential tunnel (only if WERD_ACCESS_MODE=residential) ──
+FRP_SERVER_ADDR=relay-vps.example.com
+FRP_SERVER_PORT=7000
+FRP_TOKEN=<generated>
+
+# ── Database ──
+POSTGRES_PASSWORD=<generated>
+
+# ── Redis ──
+REDIS_PASSWORD=<generated>
+
+# ── Service secrets ──
+WERD_JWT_SECRET=<generated>
+POSTIZ_JWT_SECRET=<generated>
+ACTIVEPIECES_ENCRYPTION_KEY=<generated>
+MATTERMOST_SECRET=<generated>
+
+# ── Platform API keys (configure per project via Dashboard) ──
+# Instance-wide OAuth app credentials (shared across projects):
+REDDIT_CLIENT_ID=
+REDDIT_CLIENT_SECRET=
+TWITTER_CLIENT_ID=
+TWITTER_CLIENT_SECRET=
+LINKEDIN_CLIENT_ID=
+LINKEDIN_CLIENT_SECRET=
+# ... per-platform OAuth app registration
+
+# ── Optional: LLM for AI-assisted drafting ──
+LLM_API_URL=
+LLM_API_KEY=
+LLM_MODEL=
+
+# ── Initial project setup (subsequent projects created via Dashboard) ──
+WERD_ADMIN_EMAIL=admin@yourdomain.com
+WERD_ADMIN_PASSWORD=<generated>
+```
+
+Per-project settings (keywords, subreddits, watched URLs, notification rules, platform connections) are managed through the **Werd Dashboard**, not environment variables. The Werd API Server stores these in PostgreSQL and provisions sub-service resources accordingly.
 
 ## Deployment
 
-All services run as Docker containers via a single `docker-compose.yml`:
+### Prerequisites
+
+- **Podman** 4.0+ with `podman-compose` 1.0+, **or** Docker with Docker Compose v2
+- A Linux server (4 vCPU, 8 GB RAM, 50 GB SSD minimum — 16 GB RAM recommended for comfort)
+- A domain name pointed at your server (for automatic TLS; not required for local-only mode)
+
+### Quick Start (Podman — Single Box)
+
+```bash
+# Clone the repo
+git clone https://github.com/your-org/werd.git
+cd werd
+
+# Copy and configure environment
+cp .env.example .env
+# Edit .env with your domain, access mode, and credentials
+
+# Generate all secrets automatically
+./scripts/generate-secrets.sh
+
+# Start all services
+podman-compose up -d
+
+# Check status
+podman-compose ps
+
+# Open the dashboard
+# Cloud:       https://werd.yourdomain.com
+# Local-only:  http://localhost:3000
+```
+
+### Quick Start (Docker — Single Box)
+
+```bash
+git clone https://github.com/your-org/werd.git
+cd werd
+cp .env.example .env
+./scripts/generate-secrets.sh
+docker compose up -d
+```
+
+### docker-compose with Podman Socket
+
+```bash
+# Enable the Podman socket
+systemctl --user enable --now podman.socket
+
+# Point docker-compose at Podman
+export DOCKER_HOST=unix://$XDG_RUNTIME_DIR/podman/podman.sock
+
+# Use docker compose as usual
+docker compose up -d
+```
+
+### Kubernetes (k3s — Single Node)
+
+```bash
+# Install k3s without built-in Traefik (we use Caddy)
+curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--disable traefik --disable servicelb" sh -
+
+# Deploy Werd via Helm
+helm repo add werd https://your-org.github.io/werd-charts
+helm install werd werd/werd \
+  --namespace werd --create-namespace \
+  --values values.yaml
+
+# Or generate manifests from compose
+kompose convert -f docker-compose.yml -o k8s/
+# Then manually refine and apply
+kubectl apply -f k8s/
+```
+
+### Residential Deployment (Behind NAT)
+
+**On the relay VPS** ($3-5/mo, 512 MB RAM):
+
+```bash
+# Install FRP server + Caddy
+# See deploy/relay-vps/ for ready-to-use configs
+cd deploy/relay-vps
+docker compose up -d
+```
+
+**On your home box:**
+
+```bash
+# Set access mode to residential in .env
+WERD_ACCESS_MODE=residential
+FRP_SERVER_ADDR=relay-vps.example.com
+FRP_SERVER_PORT=7000
+FRP_TOKEN=your-secret-token
+
+# Start — FRP client container included automatically
+podman-compose --profile residential up -d
+```
+
+### Compose Structure
 
 ```yaml
 services:
-  postiz:          # Cross-posting & scheduling
-  n8n:             # Workflow automation
-  mattermost:      # Team chat & notifications
-  changedetect:    # Web page monitoring
-  rsshub:          # RSS feed generation
-  ntfy:            # Push notifications
-  plausible:       # Web analytics
-  reddit-monitor:  # Custom PRAW bot
-  hn-monitor:      # Custom HN poller
+  # ── Core (Werd) ──
+  werd-api:          # Go API server
+  werd-dashboard:    # React SPA (served by Caddy or werd-api)
+
+  # ── Infrastructure ──
+  caddy:             # Reverse proxy & auto-TLS
+  postgres:          # Shared PostgreSQL (werd, postiz, activepieces, mattermost, plausible, temporal DBs)
+  redis:             # Shared Redis (Postiz, Activepieces, RSSHub, Werd sessions)
+  clickhouse:        # Plausible event store
+  temporal:          # Workflow engine (Postiz dependency)
+
+  # ── Third-party Services ──
+  postiz:            # Cross-posting & scheduling
+  activepieces:      # Workflow automation
+  mattermost:        # Team chat & notifications
+  changedetect:      # Web page monitoring
+  rsshub:            # RSS feed generation
+  folo:              # RSS reader
+  ntfy:              # Push notifications
+  plausible:         # Web analytics
+
+  # ── Custom Monitors ──
+  reddit-monitor:    # Custom PRAW bot
+  hn-monitor:        # Custom HN poller
+
+  # ── Residential tunnel (profile: residential) ──
+  frpc:              # FRP client — only started with --profile residential
+
+networks:
+  werd-net:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:
+  clickhouse-data:
+  temporal-data:
+  mattermost-data:
+  postiz-data:
+  activepieces-data:
+  changedetect-data:
+  plausible-data:
+  ntfy-data:
+  caddy-data:
+  werd-data:
 ```
 
-**Estimated requirements:** 4 vCPU, 8GB RAM, 50GB SSD (~$20-40/mo on any VPS, or run on existing infrastructure).
+## Implementation Milestones
+
+| # | Milestone | Status | Details | Dependencies |
+|---|---|---|---|---|
+| **1** | **Core Infrastructure** | | **Foundation: compose, networking, databases, proxy** | |
+| 1.1 | Project scaffolding | Not started | Directory structure, `docker-compose.yml` skeleton, `.env.example`, `scripts/`, `deploy/` directories | — |
+| 1.2 | PostgreSQL deployment | Not started | Shared PostgreSQL 17 with initialization script creating all databases (`werd`, `postiz`, `activepieces`, `mattermost`, `plausible`, `temporal`) | 1.1 |
+| 1.3 | Redis deployment | Not started | Shared Redis 7 with password auth, AOF persistence | 1.1 |
+| 1.4 | Caddy reverse proxy | Not started | Caddyfile with subdomain routing for all services, automatic TLS, security headers, WebSocket proxy | 1.1 |
+| 1.5 | Container networking | Not started | `werd-net` bridge network, DNS resolution between services, rootless Podman config | 1.1 |
+| 1.6 | Health checks & restart policies | Not started | Liveness/readiness probes for all services, `restart: unless-stopped`, dependency ordering (`depends_on` with health conditions) | 1.2–1.5 |
+| 1.7 | Secret generation script | Not started | `scripts/generate-secrets.sh` — generates all passwords, JWT secrets, encryption keys, writes to `.env` | 1.1 |
+| 1.8 | ClickHouse + Temporal | Not started | ClickHouse for Plausible events, Temporal for Postiz workflows (both with PostgreSQL backends) | 1.2 |
+| | | | | |
+| **2** | **Werd API Server (Go Backend)** | | **Core backend — auth, multi-project, orchestration** | |
+| 2.1 | Go project scaffolding | Not started | Go module, chi router, pgx connection pool, sqlc config, Dockerfile (multi-stage → distroless), compose service | 1.1 |
+| 2.2 | Database migrations | Not started | goose migration files for Werd core schema (projects, users, project_members, service_instances, alerts, etc.) | 2.1, 1.2 |
+| 2.3 | Authentication system | Not started | Local user accounts, bcrypt password hashing, JWT session tokens, middleware for route protection | 2.2 |
+| 2.4 | Multi-project CRUD | Not started | Create/read/update/delete projects, member management, role-based access control (owner/admin/member/viewer) | 2.3 |
+| 2.5 | Service provisioning engine | Not started | On project create: provision Postiz org, Mattermost team + channels, ntfy topic, Plausible site. On delete: deprovision. | 2.4, 3.1–3.5 |
+| 2.6 | Webhook ingestion | Not started | HTTP endpoints to receive alerts from monitors, tag with project, deduplicate (UNIQUE constraint on source_type + source_id), persist | 2.4 |
+| 2.7 | Notification routing engine | Not started | Evaluate per-project notification rules against incoming alerts, fan out to Mattermost channels / ntfy topics | 2.6 |
+| 2.8 | Background sync jobs | Not started | Goroutine-based scheduler: poll Postiz for post status, sync Mattermost unread counts, sync Plausible stats | 2.5 |
+| 2.9 | WebSocket real-time push | Not started | WebSocket endpoint for live alert feed — push new alerts to connected dashboard clients via LISTEN/NOTIFY | 2.6 |
+| 2.10 | OpenAPI spec generation | Not started | swag annotations on all endpoints, auto-generated OpenAPI spec for frontend type generation | 2.4–2.9 |
+| | | | | |
+| **3** | **Third-Party Service Deployment** | | **Get all sub-services running and accessible** | |
+| 3.1 | Mattermost | Not started | Deploy with PostgreSQL backend, configure default admin, verify API access for bot operations | 1.2, 1.4 |
+| 3.2 | Activepieces | Not started | Deploy with PostgreSQL + Redis, configure webhook endpoints, verify flow creation API | 1.2, 1.3, 1.4 |
+| 3.3 | Postiz + Temporal | Not started | Deploy Postiz with PostgreSQL + Redis + Temporal, verify org creation API, test OAuth flows via Caddy | 1.2, 1.3, 1.4, 1.8 |
+| 3.4 | ntfy | Not started | Deploy with SQLite cache, configure ACL for per-project topics, test push notifications | 1.4 |
+| 3.5 | changedetection.io | Not started | Deploy, configure Caddy route, verify webhook output on page change | 1.4 |
+| 3.6 | RSSHub | Not started | Deploy with Redis cache, verify feed generation for target platforms | 1.3, 1.4 |
+| 3.7 | Folo | Not started | Deploy, connect to RSSHub instance | 1.4, 3.6 |
+| 3.8 | Plausible CE + ClickHouse | Not started | Deploy with PostgreSQL + ClickHouse, configure site creation API, verify tracking snippet | 1.2, 1.4, 1.8 |
+| | | | | |
+| **4** | **Werd Dashboard (React Frontend)** | | **SPA for project management and unified control** | |
+| 4.1 | React project scaffolding | Not started | Vite + React 19 + TypeScript, Tailwind CSS, shadcn/ui, React Router, TanStack Query, Dockerfile | 1.1 |
+| 4.2 | API type generation pipeline | Not started | openapi-typescript consuming Werd API's OpenAPI spec, automated in build | 2.10, 4.1 |
+| 4.3 | Auth flow | Not started | Login/logout, JWT token management, protected routes, user context | 2.3, 4.1 |
+| 4.4 | Project switcher + overview | Not started | Project list, create/switch projects, per-project dashboard with service health and recent alerts | 2.4, 4.3 |
+| 4.5 | Alert feed view | Not started | Unified alert list with filtering (source, severity, status, keyword), search, triage actions, WebSocket live updates | 2.6, 2.9, 4.4 |
+| 4.6 | Monitoring configuration | Not started | Manage keywords, subreddits, watched URLs, RSS feeds per project — CRUD forms writing to Werd API | 2.4, 4.4 |
+| 4.7 | Platform connections | Not started | Connect/disconnect social accounts per project via Postiz OAuth flow, status display | 2.5, 4.4 |
+| 4.8 | Publishing interface | Not started | Create/schedule/manage posts across platforms, preview, platform-specific formatting (wraps Postiz API) | 2.5, 4.7 |
+| 4.9 | Notification rules | Not started | Configure routing rules per project: source type × severity → destination (Mattermost channel / ntfy topic) | 2.7, 4.4 |
+| 4.10 | Analytics dashboard | Not started | Embedded Plausible stats (iframe or API), cross-platform engagement metrics per project | 2.8, 4.4 |
+| 4.11 | Workflow viewer | Not started | View/trigger Activepieces flows, execution logs, per-project scoping | 2.5, 4.4 |
+| 4.12 | Settings & user management | Not started | Invite users to projects, manage roles, project settings, service configuration | 2.4, 4.3 |
+| | | | | |
+| **5** | **Monitoring Pipeline** | | **Custom bots for keyword monitoring across sources** | |
+| 5.1 | Reddit monitoring bot | Not started | Go service using Reddit API (or Python/PRAW). Streams target subreddits per project, keyword matching, webhook to Werd API. Configurable via Werd API. | 2.6 |
+| 5.2 | Hacker News poller | Not started | Go service polling HN API (stories, comments, Ask HN). Per-project keyword matching, webhook to Werd API. | 2.6 |
+| 5.3 | changedetection.io integration | Not started | Werd API provisions/manages watches per project via changedetection.io API. Webhook alerts routed to Werd API. | 2.5, 3.5 |
+| 5.4 | RSSHub feed configuration | Not started | Werd API generates RSSHub URLs per project keyword sets. Feeds consumed by changedetection.io or Folo. | 3.6 |
+| 5.5 | GitHub webhook receiver | Not started | Werd API endpoint receives GitHub webhooks (stars, issues, PRs, discussions), routes per project by repo mapping. | 2.6 |
+| | | | | |
+| **6** | **Notification & Routing** | | **Wire monitoring outputs to all notification destinations** | |
+| 6.1 | Mattermost provisioning | Not started | Werd API creates team + channels per project, configures bot user, incoming webhooks | 2.5, 3.1 |
+| 6.2 | Mattermost alert posting | Not started | Route alerts to correct project team → concern channel. Format alert as rich Mattermost post with context/links. | 2.7, 6.1 |
+| 6.3 | ntfy alert rules | Not started | High-priority alerts trigger ntfy push to per-project topics. Configurable priority levels via notification_rules. | 2.7, 3.4 |
+| 6.4 | Activepieces routing flows | Not started | Template flows for common routing patterns. Werd API triggers flows via webhook for complex multi-step processing. | 2.5, 3.2 |
+| 6.5 | LLM response drafting | Not started | On relevant mention: Werd API (or Activepieces flow) calls LLM API → generates draft → posts to Mattermost for human review. | 6.2 |
+| 6.6 | Alert deduplication | Not started | UNIQUE constraint on (project_id, source_type, source_id). Cross-monitor dedup for overlapping sources (e.g., same Reddit post from PRAW + RSS). | 2.6 |
+| | | | | |
+| **7** | **Publishing Pipeline** | | **Cross-posting, scheduling, and syndication** | |
+| 7.1 | Postiz org provisioning | Not started | Werd API creates Postiz organization per project, manages membership | 2.5, 3.3 |
+| 7.2 | Platform OAuth connections | Not started | Dashboard triggers Postiz OAuth flow per platform per project. Werd API tracks connection status. | 4.7, 7.1 |
+| 7.3 | Post creation & scheduling | Not started | Dashboard create/schedule → Werd API → Postiz API. Per-project scoping. Status sync back to Werd DB. | 4.8, 7.2 |
+| 7.4 | Blog syndication | Not started | cross-post CLI integration for Dev.to and Hashnode with canonical URL preservation | 7.2 |
+| 7.5 | Plausible tracking integration | Not started | Auto-generate UTM parameters for published links. Per-project Plausible site for referral tracking. | 2.5, 3.8 |
+| | | | | |
+| **8** | **Network Access & Tunnel** | | **Residential and flexible network support** | |
+| 8.1 | Cloud access mode | Not started | Default Caddyfile with direct Let's Encrypt HTTP-01 challenge. Standard DNS setup documentation. | 1.4 |
+| 8.2 | Local-only access mode | Not started | Caddyfile variant with self-signed certs or HTTP-only. Compose profile `local`. | 1.4 |
+| 8.3 | FRP tunnel client container | Not started | `frpc` container in compose (profile: `residential`). Config template reading from `.env`. | 1.1 |
+| 8.4 | Relay VPS setup | Not started | `deploy/relay-vps/` — compose file with FRP server + Caddy. Setup script and documentation. | 8.3 |
+| 8.5 | DNS-01 TLS for NAT/k8s | Not started | Caddy DNS-01 challenge plugin (Cloudflare, Route53, etc.) for environments where HTTP-01 is not possible. | 1.4 |
+| | | | | |
+| **9** | **Kubernetes Deployment** | | **Helm charts and k8s manifests for distributed scaling** | |
+| 9.1 | Kompose baseline generation | Not started | Generate initial k8s manifests from `docker-compose.yml` via Kompose | 1.1–1.8 |
+| 9.2 | Manifest refinement | Not started | Add resource limits, probes, Secrets, ConfigMaps, Ingress rules to generated manifests | 9.1 |
+| 9.3 | Helm chart | Not started | Package all manifests into a Helm chart with `values.yaml` for configuration | 9.2 |
+| 9.4 | Database operators | Not started | CloudNativePG for PostgreSQL, Redis operator, Altinity for ClickHouse — replacing raw StatefulSets | 9.2 |
+| 9.5 | k3s single-node testing | Not started | Documented k3s deployment with optimized settings (`--disable traefik`, GOMEMLIMIT, SQLite backend) | 9.3 |
+| 9.6 | Multi-node scaling guide | Not started | Documentation for scaling individual services (HPA config, node affinity, PVC across nodes) | 9.5 |
+| | | | | |
+| **10** | **Hardening & Documentation** | | **Production readiness, security, operations** | |
+| 10.1 | Backup & restore | Not started | `scripts/backup.sh` — pg_dump all databases, snapshot volumes. `scripts/restore.sh` for recovery. Documented schedule. | 1.2 |
+| 10.2 | Security hardening | Not started | Rate limiting (Caddy), CORS policies, CSP headers, non-root container users, encrypted credentials (pgcrypto or app-level AES), secret rotation script | 1.4, 2.3 |
+| 10.3 | Logging & observability | Not started | Centralized log aggregation (Loki + Promtail or simple file-based). Service-level error alerting via ntfy. | 1.6, 3.4 |
+| 10.4 | Setup documentation | Not started | Step-by-step deployment guide for each access mode. Configuration reference. Troubleshooting FAQ. | All above |
+| 10.5 | Update/migration tooling | Not started | `scripts/update.sh` — pull new images, run goose migrations, restart services with rollback. Compose and k8s variants. | 10.1 |
+| 10.6 | CI/CD pipeline | Not started | GitHub Actions: build Werd API + Dashboard images, run tests, push to container registry, Helm chart release | 2.10, 4.2 |
+
+### Priority Order
+
+**Critical path:** 1.x → 2.1–2.4 → 3.1–3.4 → 4.1–4.5 → 5.1–5.2 → 6.1–6.3
+
+1. **Phase 1 (Core Infra)** — compose file, databases, proxy, networking
+2. **Phase 2 (Werd API)** — Go backend with auth, multi-project, webhook ingestion (the glue that holds everything together)
+3. **Phase 3 (Third-Party Services)** — get all sub-services running and API-accessible
+4. **Phase 4 (Dashboard)** — React SPA providing the unified management UI (can be developed in parallel with Phase 3)
+5. **Phase 5 + 6 (Monitoring + Routing)** — the core value proposition: monitor → alert → notify
+6. **Phase 7 (Publishing)** — cross-posting and content distribution
+7. **Phase 8 (Network Access)** — residential tunnel support, access mode variants
+8. **Phase 9 (Kubernetes)** — Helm charts and distributed deployment (can begin after Phase 3)
+9. **Phase 10 (Hardening)** — production polish, security, documentation, CI/CD
 
 ## Status
 
-Early stage — architecture defined, component selection complete. Implementation in progress.
+Early stage — architecture defined, component selection complete, multi-project data model designed, technology decisions made (Go backend, React + TypeScript frontend, PostgreSQL core, Podman-first with Kubernetes path). Implementation beginning with core infrastructure (Phase 1).
 
 ## License
 

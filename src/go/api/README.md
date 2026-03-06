@@ -4,10 +4,10 @@ Go backend for the Werd platform. Handles authentication, multi-project orchestr
 
 ## Stack
 
-- **Router:** chi
-- **Database:** pgx v5 + sqlc
-- **Migrations:** goose
-- **Config:** envconfig
+- **Router:** net/http (will migrate to chi)
+- **Database:** pgx v5 + sqlc (planned)
+- **Migrations:** goose (planned)
+- **Config:** os.Getenv (will migrate to envconfig)
 
 ## Development
 

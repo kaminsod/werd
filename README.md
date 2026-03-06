@@ -98,7 +98,7 @@ Every component is open source (OSI-approved licenses) and fully self-hostable. 
 | RSS reader | [Folo](https://github.com/RSSNext/Folo) | AI-powered feed reader for manual browsing | GPL-3.0 |
 | Push notifications | [ntfy](https://github.com/binwiederhier/ntfy) | Instant push alerts to phone/desktop via HTTP | Apache-2.0 |
 | Web analytics | [Plausible CE](https://github.com/plausible/analytics) | Privacy-friendly analytics (no cookies) | AGPL-3.0 |
-| Reddit monitoring | Custom bot using [PRAW](https://github.com/praw-dev/praw) | Stream subreddits for keyword matches | BSD |
+| Reddit monitoring | Custom Go service using [Reddit API](https://www.reddit.com/dev/api/) | Stream subreddits for keyword matches | Apache-2.0 |
 | Hacker News monitoring | Custom poller using [HN API](https://github.com/HackerNews/API) | Poll new stories/comments for keyword matches | Public API |
 | Blog syndication | [cross-post CLI](https://github.com/shahednasser/cross-post) | Auto-publish to Dev.to and Hashnode | MIT |
 
@@ -119,7 +119,7 @@ Every component is open source (OSI-approved licenses) and fully self-hostable. 
 ### How the pieces connect
 
 **Monitoring pipeline:**
-1. **Reddit** — PRAW bot streams submissions and comments from target subreddits, matches against per-project keyword lists, sends alerts via webhook to Werd API
+1. **Reddit** — Go service streams submissions and comments from target subreddits, matches against per-project keyword lists, sends alerts via webhook to Werd API
 2. **Hacker News** — Custom poller checks new stories/comments against keywords via the public HN API; RSSHub generates keyword-filtered HN feeds
 3. **Web/News** — changedetection.io watches web pages (competitor blogs, procurement sites, news) for keyword-triggered changes
 4. **RSS** — RSSHub turns platforms without native RSS into feeds; changedetection.io monitors feeds for keyword matches
@@ -721,7 +721,7 @@ services:
   postgres:          # Shared PostgreSQL (werd, postiz, activepieces, mattermost, plausible, temporal DBs)
   redis:             # Shared Redis (Postiz, Activepieces, RSSHub, Werd sessions)
   clickhouse:        # Plausible event store
-  temporal:          # Workflow engine (Postiz dependency)
+  # temporal:        # Workflow engine (Postiz dependency) — added with Postiz in Phase 3
 
   # ── Third-party Services ──
   postiz:            # Cross-posting & scheduling
@@ -734,7 +734,7 @@ services:
   plausible:         # Web analytics
 
   # ── Custom Monitors ──
-  reddit-monitor:    # Custom PRAW bot
+  reddit-monitor:    # Custom Go Reddit monitor
   hn-monitor:        # Custom HN poller
 
   # ── Residential tunnel (profile: residential) ──
@@ -748,15 +748,11 @@ volumes:
   postgres-data:
   redis-data:
   clickhouse-data:
-  temporal-data:
-  mattermost-data:
-  postiz-data:
-  activepieces-data:
-  changedetect-data:
-  plausible-data:
-  ntfy-data:
   caddy-data:
-  werd-data:
+  caddy-config:
+  # mattermost-data:       # Uncomment as services are enabled
+  # changedetect-data:
+  # ntfy-data:
 ```
 
 ## Implementation Milestones
@@ -810,7 +806,7 @@ volumes:
 | 4.12 | Settings & user management | Not started | Invite users to projects, manage roles, project settings, service configuration | 2.4, 4.3 |
 | | | | | |
 | **5** | **Monitoring Pipeline** | | **Custom bots for keyword monitoring across sources** | |
-| 5.1 | Reddit monitoring bot | Not started | Go service using Reddit API (or Python/PRAW). Streams target subreddits per project, keyword matching, webhook to Werd API. Configurable via Werd API. | 2.6 |
+| 5.1 | Reddit monitoring bot | Not started | Go service using Reddit API. Streams target subreddits per project, keyword matching, webhook to Werd API. Configurable via Werd API. | 2.6 |
 | 5.2 | Hacker News poller | Not started | Go service polling HN API (stories, comments, Ask HN). Per-project keyword matching, webhook to Werd API. | 2.6 |
 | 5.3 | changedetection.io integration | Not started | Werd API provisions/manages watches per project via changedetection.io API. Webhook alerts routed to Werd API. | 2.5, 3.5 |
 | 5.4 | RSSHub feed configuration | Not started | Werd API generates RSSHub URLs per project keyword sets. Feeds consumed by changedetection.io or Folo. | 3.6 |
@@ -822,7 +818,7 @@ volumes:
 | 6.3 | ntfy alert rules | Not started | High-priority alerts trigger ntfy push to per-project topics. Configurable priority levels via notification_rules. | 2.7, 3.4 |
 | 6.4 | Activepieces routing flows | Not started | Template flows for common routing patterns. Werd API triggers flows via webhook for complex multi-step processing. | 2.5, 3.2 |
 | 6.5 | LLM response drafting | Not started | On relevant mention: Werd API (or Activepieces flow) calls LLM API → generates draft → posts to Mattermost for human review. | 6.2 |
-| 6.6 | Alert deduplication | Not started | UNIQUE constraint on (project_id, source_type, source_id). Cross-monitor dedup for overlapping sources (e.g., same Reddit post from PRAW + RSS). | 2.6 |
+| 6.6 | Alert deduplication | Not started | UNIQUE constraint on (project_id, source_type, source_id). Cross-monitor dedup for overlapping sources (e.g., same Reddit post from Reddit monitor + RSS). | 2.6 |
 | | | | | |
 | **7** | **Publishing Pipeline** | | **Cross-posting, scheduling, and syndication** | |
 | 7.1 | Postiz org provisioning | Not started | Werd API creates Postiz organization per project, manages membership | 2.5, 3.3 |
@@ -835,7 +831,7 @@ volumes:
 | 8.1 | Cloud access mode | Not started | Default Caddyfile with direct Let's Encrypt HTTP-01 challenge. Standard DNS setup documentation. | 1.4 |
 | 8.2 | Local-only access mode | Not started | Caddyfile variant with self-signed certs or HTTP-only. Compose profile `local`. | 1.4 |
 | 8.3 | FRP tunnel client container | Not started | `frpc` container in compose (profile: `residential`). Config template reading from `.env`. | 1.1 |
-| 8.4 | Relay VPS setup | Not started | `deploy/relay-vps/` — compose file with FRP server + Caddy. Setup script and documentation. | 8.3 |
+| 8.4 | Relay VPS setup | Not started | `src/deploy/relay/` — compose file with FRP server + Caddy. Setup script and documentation. | 8.3 |
 | 8.5 | DNS-01 TLS for NAT/k8s | Not started | Caddy DNS-01 challenge plugin (Cloudflare, Route53, etc.) for environments where HTTP-01 is not possible. | 1.4 |
 | | | | | |
 | **9** | **Kubernetes Deployment** | | **Helm charts and k8s manifests for distributed scaling** | |

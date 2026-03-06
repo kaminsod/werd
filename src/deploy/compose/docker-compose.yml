@@ -34,6 +34,11 @@ services:
       - "3000:3000"
     networks:
       - werd-net
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   # ── Infrastructure ──
 

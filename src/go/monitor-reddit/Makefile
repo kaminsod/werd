@@ -3,17 +3,17 @@
 BIN := monitor-reddit
 CMD := ./cmd/monitor-reddit
 
-build:
+build: ## Build binary
 	go build -o $(BIN) $(CMD)
 
-dev:
+dev: ## Run with go run
 	go run $(CMD)
 
-test:
+test: ## Run tests
 	go test ./... -v
 
-lint:
+lint: ## Run go vet
 	go vet ./...
 
-clean:
+clean: ## Remove build artifacts
 	rm -f $(BIN)

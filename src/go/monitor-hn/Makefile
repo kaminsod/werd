@@ -3,17 +3,17 @@
 BIN := monitor-hn
 CMD := ./cmd/monitor-hn
 
-build:
+build: ## Build binary
 	go build -o $(BIN) $(CMD)
 
-dev:
+dev: ## Run with go run
 	go run $(CMD)
 
-test:
+test: ## Run tests
 	go test ./... -v
 
-lint:
+lint: ## Run go vet
 	go vet ./...
 
-clean:
+clean: ## Remove build artifacts
 	rm -f $(BIN)

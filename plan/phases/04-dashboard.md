@@ -6,7 +6,7 @@ SPA for project management and unified control.
 
 | # | Task | Status | Dependencies |
 |---|---|---|---|
-| 4.1 | React project scaffolding | Not started | 1.1 |
+| 4.1 | React project scaffolding | Done | 1.1 |
 | 4.2 | API type generation pipeline | Not started | 2.10, 4.1 |
 | 4.3 | Auth flow | Not started | 2.3, 4.1 |
 | 4.4 | Project switcher + overview | Not started | 2.4, 4.3 |

@@ -7,9 +7,9 @@
 - [x] 1.7 Secret generation script — tools/generate-secrets.sh
 - [x] 2.1 Go project scaffolding — Go module, net/http server, sqlc config, Dockerfile, compose service
 - [x] 4.1 React project scaffolding — Vite, React 19, TypeScript, Tailwind, directory structure
+- [x] 1.2 PostgreSQL deployment — per-service users/databases, tuned config, init-db.sh
 
 ### In Progress
-- [ ] 1.2 PostgreSQL deployment
 - [ ] 1.3 Redis deployment
 - [ ] 1.4 Caddy reverse proxy
 - [ ] 1.5 Container networking

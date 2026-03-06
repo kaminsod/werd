@@ -45,13 +45,25 @@ services:
   postgres:
     image: postgres:17-alpine
     restart: unless-stopped
+    command: >
+      postgres
+        -c config_file=/etc/postgresql/postgresql.conf
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_USER: werd
       POSTGRES_DB: werd
+      # Passed to init-db.sh for per-service user creation:
+      POSTIZ_DB_PASSWORD: ${POSTIZ_DB_PASSWORD}
+      ACTIVEPIECES_DB_PASSWORD: ${ACTIVEPIECES_DB_PASSWORD}
+      MATTERMOST_DB_PASSWORD: ${MATTERMOST_DB_PASSWORD}
+      PLAUSIBLE_DB_PASSWORD: ${PLAUSIBLE_DB_PASSWORD}
+      TEMPORAL_DB_PASSWORD: ${TEMPORAL_DB_PASSWORD}
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
+      - ./postgres.conf:/etc/postgresql/postgresql.conf:ro
+    # ports:
+    #   - "${POSTGRES_PORT:-5432}:5432"  # Uncomment for host access (dev tools, psql)
     networks:
       - werd-net
     healthcheck:
@@ -110,7 +122,7 @@ services:
   #   restart: unless-stopped
   #   environment:
   #     MM_SQLSETTINGS_DRIVERNAME: postgres
-  #     MM_SQLSETTINGS_DATASOURCE: postgres://werd:${POSTGRES_PASSWORD}@postgres:5432/mattermost?sslmode=disable
+  #     MM_SQLSETTINGS_DATASOURCE: postgres://mattermost:${MATTERMOST_DB_PASSWORD}@postgres:5432/mattermost?sslmode=disable
   #   volumes:
   #     - mattermost-data:/mattermost/data
   #   networks:
@@ -125,8 +137,8 @@ services:
   #   environment:
   #     AP_POSTGRES_HOST: postgres
   #     AP_POSTGRES_PORT: 5432
-  #     AP_POSTGRES_USERNAME: werd
-  #     AP_POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+  #     AP_POSTGRES_USERNAME: activepieces
+  #     AP_POSTGRES_PASSWORD: ${ACTIVEPIECES_DB_PASSWORD}
   #     AP_POSTGRES_DATABASE: activepieces
   #     AP_REDIS_HOST: redis
   #     AP_REDIS_PORT: 6379
@@ -144,7 +156,7 @@ services:
   #   image: ghcr.io/gitroomhq/postiz-app:latest
   #   restart: unless-stopped
   #   environment:
-  #     DATABASE_URL: postgres://werd:${POSTGRES_PASSWORD}@postgres:5432/postiz?sslmode=disable
+  #     DATABASE_URL: postgres://postiz:${POSTIZ_DB_PASSWORD}@postgres:5432/postiz?sslmode=disable
   #     REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/1
   #     JWT_SECRET: ${POSTIZ_JWT_SECRET}
   #   networks:
@@ -188,7 +200,7 @@ services:
   #   image: ghcr.io/plausible/community-edition:latest
   #   restart: unless-stopped
   #   environment:
-  #     DATABASE_URL: postgres://werd:${POSTGRES_PASSWORD}@postgres:5432/plausible?sslmode=disable
+  #     DATABASE_URL: postgres://plausible:${PLAUSIBLE_DB_PASSWORD}@postgres:5432/plausible?sslmode=disable
   #     CLICKHOUSE_DATABASE_URL: http://clickhouse:8123/plausible_events
   #     SECRET_KEY_BASE: ${PLAUSIBLE_SECRET}
   #     BASE_URL: https://analytics.${WERD_DOMAIN}

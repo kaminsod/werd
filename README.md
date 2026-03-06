@@ -466,8 +466,16 @@ FRP_SERVER_ADDR=relay-vps.example.com
 FRP_SERVER_PORT=7000
 FRP_TOKEN=<generated>
 
-# ── Database ──
+# ── Database (werd superuser — owns werd DB, runs migrations) ──
 POSTGRES_PASSWORD=<generated>
+
+# ── Per-service database passwords ──
+# Each service gets its own PostgreSQL user restricted to its own database.
+POSTIZ_DB_PASSWORD=<generated>
+ACTIVEPIECES_DB_PASSWORD=<generated>
+MATTERMOST_DB_PASSWORD=<generated>
+PLAUSIBLE_DB_PASSWORD=<generated>
+TEMPORAL_DB_PASSWORD=<generated>
 
 # ── Redis ──
 REDIS_PASSWORD=<generated>
@@ -477,6 +485,7 @@ WERD_JWT_SECRET=<generated>
 POSTIZ_JWT_SECRET=<generated>
 ACTIVEPIECES_ENCRYPTION_KEY=<generated>
 MATTERMOST_SECRET=<generated>
+PLAUSIBLE_SECRET=<generated>
 
 # ── Platform API keys (configure per project via Dashboard) ──
 # Instance-wide OAuth app credentials (shared across projects):
@@ -761,7 +770,7 @@ volumes:
 |---|---|---|---|---|
 | **1** | **Core Infrastructure** | | **Foundation: compose, networking, databases, proxy** | |
 | 1.1 | Project scaffolding | Done | Directory structure, `docker-compose.yml` skeleton, `.env.example`, Makefiles, CI scripts, Dockerfiles | — |
-| 1.2 | PostgreSQL deployment | Not started | Shared PostgreSQL 17 with initialization script creating all databases (`werd`, `postiz`, `activepieces`, `mattermost`, `plausible`, `temporal`) | 1.1 |
+| 1.2 | PostgreSQL deployment | Done | Shared PostgreSQL 17 with per-service users/databases, tuned config, init-db.sh with grants | 1.1 |
 | 1.3 | Redis deployment | Not started | Shared Redis 7 with password auth, AOF persistence | 1.1 |
 | 1.4 | Caddy reverse proxy | Not started | Caddyfile with subdomain routing for all services, automatic TLS, security headers, WebSocket proxy | 1.1 |
 | 1.5 | Container networking | Not started | `werd-net` bridge network, DNS resolution between services, rootless Podman config | 1.1 |

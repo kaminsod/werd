@@ -1,38 +1,52 @@
-# Environment
+# ── Go ──
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+vendor/
+
+# ── Node / Web ──
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+
+# ── Environment & Secrets ──
 .env
 .env.*
+.env.local
+.env.*.local
 !.env.example
+!env.example
 
-# Docker
-docker-compose.override.yml
-
-# Data volumes
-data/
-volumes/
-
-# OS
-.DS_Store
-Thumbs.db
-
-# IDE
+# ── IDE ──
 .idea/
 .vscode/
 *.swp
 *.swo
 *~
 
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-.venv/
-venv/
-*.egg-info/
+# ── Containers ──
+docker-compose.override.yml
+*.tar
+*.tar.gz
 
-# Node
-node_modules/
-dist/
+# ── Data (runtime volumes) ──
+data/
+volumes/
 
-# Logs
+# ── OS ──
+.DS_Store
+Thumbs.db
+
+# ── Logs ──
 *.log
 logs/
+
+# ── Coverage & Reports ──
+coverage/
+*.cover
+*.prof

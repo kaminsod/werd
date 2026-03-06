@@ -1,0 +1,14 @@
+# FRP Server Configuration
+# Runs on the relay VPS to accept tunnel connections from the home box.
+
+bindPort = 7000
+
+auth.method = "token"
+auth.token = "CHANGE_ME"
+
+webServer.addr = "127.0.0.1"
+webServer.port = 7500
+
+# HTTP virtual host ports (Caddy reverse-proxies to these)
+vhostHTTPPort = 8080
+vhostHTTPSPort = 8443

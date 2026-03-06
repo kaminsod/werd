@@ -1,0 +1,26 @@
+# Werd — Relay VPS
+# Run this on a small VPS ($3-5/mo) to tunnel traffic to a residential Werd deployment.
+
+services:
+  frps:
+    image: snowdreamtech/frps:latest
+    restart: unless-stopped
+    ports:
+      - "7000:7000"
+    volumes:
+      - ./frps.toml:/etc/frp/frps.toml:ro
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  caddy-data:
+  caddy-config:

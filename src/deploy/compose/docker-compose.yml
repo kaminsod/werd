@@ -1,0 +1,252 @@
+services:
+  # ── Core (Werd) ──
+
+  werd-api:
+    build:
+      context: ../../go/api
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - DATABASE_URL=postgres://werd:${POSTGRES_PASSWORD}@postgres:5432/werd?sslmode=disable
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+    ports:
+      - "8090:8090"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - werd-net
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8090/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  werd-dashboard:
+    build:
+      context: ../../web
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    networks:
+      - werd-net
+
+  # ── Infrastructure ──
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_USER: werd
+      POSTGRES_DB: werd
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
+    networks:
+      - werd-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U werd"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD} --appendonly yes
+    volumes:
+      - redis-data:/data
+    networks:
+      - werd-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24-alpine
+    restart: unless-stopped
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+    networks:
+      - werd-net
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ../caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      - werd-net
+    depends_on:
+      - werd-api
+      - werd-dashboard
+
+  # ── Third-Party Services ──
+
+  # mattermost:
+  #   image: mattermost/mattermost-team-edition:latest
+  #   restart: unless-stopped
+  #   environment:
+  #     MM_SQLSETTINGS_DRIVERNAME: postgres
+  #     MM_SQLSETTINGS_DATASOURCE: postgres://werd:${POSTGRES_PASSWORD}@postgres:5432/mattermost?sslmode=disable
+  #   volumes:
+  #     - mattermost-data:/mattermost/data
+  #   networks:
+  #     - werd-net
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+
+  # activepieces:
+  #   image: activepieces/activepieces:latest
+  #   restart: unless-stopped
+  #   environment:
+  #     AP_POSTGRES_HOST: postgres
+  #     AP_POSTGRES_PORT: 5432
+  #     AP_POSTGRES_USERNAME: werd
+  #     AP_POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+  #     AP_POSTGRES_DATABASE: activepieces
+  #     AP_REDIS_HOST: redis
+  #     AP_REDIS_PORT: 6379
+  #     AP_REDIS_PASSWORD: ${REDIS_PASSWORD}
+  #     AP_ENCRYPTION_KEY: ${ACTIVEPIECES_ENCRYPTION_KEY}
+  #   networks:
+  #     - werd-net
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+
+  # postiz:
+  #   image: ghcr.io/gitroomhq/postiz-app:latest
+  #   restart: unless-stopped
+  #   environment:
+  #     DATABASE_URL: postgres://werd:${POSTGRES_PASSWORD}@postgres:5432/postiz?sslmode=disable
+  #     REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/1
+  #     JWT_SECRET: ${POSTIZ_JWT_SECRET}
+  #   networks:
+  #     - werd-net
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+
+  # changedetect:
+  #   image: ghcr.io/dgtlmoon/changedetection.io:latest
+  #   restart: unless-stopped
+  #   volumes:
+  #     - changedetect-data:/datastore
+  #   networks:
+  #     - werd-net
+
+  # rsshub:
+  #   image: diygod/rsshub:latest
+  #   restart: unless-stopped
+  #   environment:
+  #     CACHE_TYPE: redis
+  #     REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/2
+  #   networks:
+  #     - werd-net
+  #   depends_on:
+  #     redis:
+  #       condition: service_healthy
+
+  # ntfy:
+  #   image: binwiederhier/ntfy:latest
+  #   restart: unless-stopped
+  #   command: serve
+  #   volumes:
+  #     - ntfy-data:/var/lib/ntfy
+  #   networks:
+  #     - werd-net
+
+  # plausible:
+  #   image: ghcr.io/plausible/community-edition:latest
+  #   restart: unless-stopped
+  #   environment:
+  #     DATABASE_URL: postgres://werd:${POSTGRES_PASSWORD}@postgres:5432/plausible?sslmode=disable
+  #     CLICKHOUSE_DATABASE_URL: http://clickhouse:8123/plausible_events
+  #     SECRET_KEY_BASE: ${PLAUSIBLE_SECRET}
+  #     BASE_URL: https://analytics.${WERD_DOMAIN}
+  #   networks:
+  #     - werd-net
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     clickhouse:
+  #       condition: service_healthy
+
+  # ── Custom Monitors ──
+
+  # reddit-monitor:
+  #   build:
+  #     context: ../../go/monitor-reddit
+  #     dockerfile: Dockerfile
+  #   restart: unless-stopped
+  #   environment:
+  #     WERD_API_URL: http://werd-api:8090
+  #     REDDIT_CLIENT_ID: ${REDDIT_CLIENT_ID}
+  #     REDDIT_CLIENT_SECRET: ${REDDIT_CLIENT_SECRET}
+  #   networks:
+  #     - werd-net
+  #   depends_on:
+  #     werd-api:
+  #       condition: service_healthy
+
+  # hn-monitor:
+  #   build:
+  #     context: ../../go/monitor-hn
+  #     dockerfile: Dockerfile
+  #   restart: unless-stopped
+  #   environment:
+  #     WERD_API_URL: http://werd-api:8090
+  #   networks:
+  #     - werd-net
+  #   depends_on:
+  #     werd-api:
+  #       condition: service_healthy
+
+  # ── Residential Tunnel (activate with: --profile residential) ──
+
+  # frpc:
+  #   image: snowdreamtech/frpc:latest
+  #   restart: unless-stopped
+  #   profiles:
+  #     - residential
+  #   volumes:
+  #     - ./frpc.toml:/etc/frp/frpc.toml:ro
+  #   networks:
+  #     - werd-net
+
+networks:
+  werd-net:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:
+  clickhouse-data:
+  caddy-data:
+  caddy-config:
+  # mattermost-data:
+  # changedetect-data:
+  # ntfy-data:

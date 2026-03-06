@@ -1,0 +1,45 @@
+# Werd — Production Caddyfile
+# Subdomain routing with automatic TLS via Let's Encrypt.
+# Replace {$WERD_DOMAIN} with your domain or set it as an environment variable.
+
+werd.{$WERD_DOMAIN} {
+	reverse_proxy werd-dashboard:3000
+}
+
+api.{$WERD_DOMAIN} {
+	reverse_proxy werd-api:8090
+}
+
+# Uncomment as services are activated:
+
+# chat.{$WERD_DOMAIN} {
+# 	reverse_proxy mattermost:8065
+# }
+
+# flow.{$WERD_DOMAIN} {
+# 	reverse_proxy activepieces:8080
+# }
+
+# postiz.{$WERD_DOMAIN} {
+# 	reverse_proxy postiz:4200
+# }
+
+# monitor.{$WERD_DOMAIN} {
+# 	reverse_proxy changedetect:5000
+# }
+
+# rss.{$WERD_DOMAIN} {
+# 	reverse_proxy rsshub:1200
+# }
+
+# reader.{$WERD_DOMAIN} {
+# 	reverse_proxy folo:2233
+# }
+
+# ntfy.{$WERD_DOMAIN} {
+# 	reverse_proxy ntfy:2586
+# }
+
+# analytics.{$WERD_DOMAIN} {
+# 	reverse_proxy plausible:8000
+# }

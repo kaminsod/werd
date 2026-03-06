@@ -1,0 +1,16 @@
+FROM golang:1.23-alpine
+
+RUN apk add --no-cache \
+    git \
+    make \
+    bash \
+    nodejs \
+    npm \
+    curl
+
+WORKDIR /workspace
+
+COPY ci/runner/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]

@@ -1,0 +1,10 @@
+# Relay VPS Caddyfile
+# Terminates TLS and proxies to FRP's vhost port.
+# Replace yourdomain.com with your actual domain.
+
+*.yourdomain.com {
+	tls {
+		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+	}
+	reverse_proxy localhost:8080
+}

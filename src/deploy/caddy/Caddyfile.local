@@ -1,0 +1,10 @@
+# Werd — Local-only Caddyfile
+# No TLS, access via localhost ports.
+
+:3080 {
+	reverse_proxy werd-dashboard:3000
+}
+
+:3081 {
+	reverse_proxy werd-api:8090
+}

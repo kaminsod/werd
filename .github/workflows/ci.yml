@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      api: ${{ steps.changes.outputs.api }}
+      web: ${{ steps.changes.outputs.web }}
+      monitors: ${{ steps.changes.outputs.monitors }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            api:
+              - 'src/go/api/**'
+            web:
+              - 'src/web/**'
+            monitors:
+              - 'src/go/monitor-*/**'
+
+  build-api:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.api == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+      - name: Build
+        working-directory: src/go/api
+        run: go build ./cmd/werd-api
+      - name: Test
+        working-directory: src/go/api
+        run: go test ./... -v
+      - name: Vet
+        working-directory: src/go/api
+        run: go vet ./...
+
+  build-web:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install
+        working-directory: src/web
+        run: npm ci
+      - name: Typecheck
+        working-directory: src/web
+        run: npm run typecheck
+      - name: Build
+        working-directory: src/web
+        run: npm run build
+
+  build-monitors:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.monitors == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+      - name: Build Reddit Monitor
+        working-directory: src/go/monitor-reddit
+        run: go build ./cmd/monitor-reddit
+      - name: Build HN Monitor
+        working-directory: src/go/monitor-hn
+        run: go build ./cmd/monitor-hn

@@ -453,7 +453,7 @@ For Kubernetes, each volume maps to a PersistentVolumeClaim (PVC). Use a Storage
 
 ### Configuration
 
-All service configuration is driven through environment variables in a single `.env` file:
+All service configuration is driven through environment variables in `src/deploy/compose/.env` (copied from `.env.example`):
 
 ```bash
 # ── Domain & Access Mode ──
@@ -500,6 +500,116 @@ WERD_ADMIN_PASSWORD=<generated>
 
 Per-project settings (keywords, subreddits, watched URLs, notification rules, platform connections) are managed through the **Werd Dashboard**, not environment variables. The Werd API Server stores these in PostgreSQL and provisions sub-service resources accordingly.
 
+## Repository Layout
+
+This is a monorepo. All application source code lives under `src/`, with language-specific code further nested (e.g., `src/go/` for all Go modules). Top-level directories serve distinct purposes:
+
+```
+werd/
+├── src/                               # All application source and deployment code
+│   ├── go/                            # Go workspace (all Go modules)
+│   │   ├── go.work                    # Go workspace file linking all modules
+│   │   ├── api/                       # Werd API Server
+│   │   │   ├── cmd/werd-api/          #   Entry point (main.go)
+│   │   │   ├── internal/              #   Internal packages
+│   │   │   │   ├── config/            #     Environment/config loading
+│   │   │   │   ├── handler/           #     HTTP route handlers
+│   │   │   │   ├── middleware/        #     Auth, CORS, logging, project-scoping
+│   │   │   │   ├── model/            #     Domain types
+│   │   │   │   ├── router/            #     chi route definitions
+│   │   │   │   ├── service/           #     Business logic
+│   │   │   │   ├── storage/           #     sqlc-generated PostgreSQL queries
+│   │   │   │   ├── webhook/           #     Webhook ingestion handlers
+│   │   │   │   └── integration/       #     API clients (Mattermost, Postiz, etc.)
+│   │   │   ├── migrations/            #   goose SQL migration files
+│   │   │   ├── queries/               #   sqlc .sql query files
+│   │   │   ├── sqlc.yaml              #   sqlc codegen config
+│   │   │   ├── Makefile               #   build, test, lint, migrate, generate
+│   │   │   └── Dockerfile             #   Multi-stage: golang → distroless
+│   │   ├── monitor-reddit/            # Reddit monitoring bot
+│   │   │   ├── cmd/monitor-reddit/    #   Entry point
+│   │   │   ├── internal/              #   Reddit API, keyword matching, webhooks
+│   │   │   ├── Makefile
+│   │   │   └── Dockerfile
+│   │   └── monitor-hn/                # Hacker News poller
+│   │       ├── cmd/monitor-hn/        #   Entry point
+│   │       ├── internal/              #   HN API, keyword matching, webhooks
+│   │       ├── Makefile
+│   │       └── Dockerfile
+│   │
+│   ├── web/                           # Werd Dashboard (React + TypeScript SPA)
+│   │   ├── src/
+│   │   │   ├── components/            #   React components (shadcn/ui based)
+│   │   │   ├── pages/                 #   Route pages
+│   │   │   ├── hooks/                 #   Custom React hooks
+│   │   │   ├── lib/                   #   Utilities, API client helpers
+│   │   │   ├── stores/                #   Zustand state stores
+│   │   │   └── types/                 #   openapi-typescript generated API types
+│   │   ├── vite.config.ts
+│   │   ├── package.json
+│   │   ├── Makefile
+│   │   └── Dockerfile                 #   Multi-stage: node → caddy (static serve)
+│   │
+│   └── deploy/                        # All deployment / runtime configuration
+│       ├── compose/                   #   Docker/Podman compose (primary deployment)
+│       │   ├── docker-compose.yml     #     Full stack definition
+│       │   ├── .env.example           #     Environment variable template
+│       │   └── init-db.sh             #     PostgreSQL multi-database init script
+│       ├── caddy/                     #   Reverse proxy configuration
+│       │   ├── Caddyfile              #     Production (subdomain routing, auto-TLS)
+│       │   └── Caddyfile.local        #     Local-only (no TLS)
+│       ├── relay/                     #   Residential tunnel (relay VPS setup)
+│       │   ├── docker-compose.yml     #     FRP server + Caddy on relay VPS
+│       │   ├── frps.toml              #     FRP server config
+│       │   └── Caddyfile              #     Relay Caddy config
+│       └── k8s/                       #   Kubernetes manifests / Helm chart (future)
+│           └── helm/werd/             #     Helm chart
+│
+├── ci/                                # CI/CD infrastructure
+│   ├── Containerfile                  #   CI runner container definition
+│   ├── runner/                        #   Runner entrypoint
+│   └── scripts/                       #   Per-concern CI scripts (build, test, lint, detect-changes)
+│
+├── tools/                             # Repo-wide developer scripts
+│   ├── generate-secrets.sh            #   Generate all .env secrets
+│   ├── dev-setup.sh                   #   One-command dev environment bootstrap
+│   └── ci/                            #   CI runner management
+│
+├── design/                            # Architecture & design documentation
+│   ├── ARCHITECTURE.md                #   System architecture overview
+│   ├── DESIGN_LOG.md                  #   Chronological decision log
+│   ├── DATA_MODEL.md                  #   Database schema design
+│   └── diagrams/                      #   Mermaid/PNG architecture diagrams
+│
+├── spec/                              # API specifications
+│   └── openapi.yaml                   #   Werd API OpenAPI spec (source of truth for frontend types)
+│
+├── research/                          # Technical & market research
+│   ├── competitors/                   #   Competitor analysis
+│   └── tools/                         #   Tool evaluations
+│
+├── plan/                              # Planning & progress tracking
+│   ├── PROGRESS.md                    #   Current status
+│   ├── BLOCKERS.md                    #   Known blockers
+│   └── phases/                        #   Per-phase detailed plans (01 through 10)
+│
+├── marketing/                         # Marketing materials
+│
+├── Makefile                           # Top-level build orchestration
+├── PLAN.md                            # High-level phase overview
+├── README.md                          # This file
+└── .github/workflows/ci.yml          # GitHub Actions CI
+```
+
+### Key conventions
+
+- **`src/go/`** — All Go code lives here as a [Go workspace](https://go.dev/doc/tutorial/workspaces). Modules share dependencies via `go.work` but build independently (each has its own `Dockerfile`).
+- **`src/web/`** — React SPA. API types are auto-generated from `spec/openapi.yaml` via openapi-typescript.
+- **`src/deploy/`** — All runtime/deployment configuration. The `docker-compose.yml` references Dockerfiles in sibling directories via relative build contexts.
+- **`tools/`** — Scripts developers run locally. `ci/scripts/` — scripts that run only in CI.
+- **`design/`** — Architecture docs and decision log. Separate from `plan/` which tracks implementation progress.
+- **Per-package Makefiles** — each package under `src/` has its own `Makefile`. The root `Makefile` delegates to them (e.g., `make build-api` → `make -C src/go/api build`).
+
 ## Deployment
 
 ### Prerequisites
@@ -516,17 +626,17 @@ git clone https://github.com/your-org/werd.git
 cd werd
 
 # Copy and configure environment
-cp .env.example .env
-# Edit .env with your domain, access mode, and credentials
+cp src/deploy/compose/.env.example src/deploy/compose/.env
+# Edit src/deploy/compose/.env with your domain, access mode, and credentials
 
 # Generate all secrets automatically
-./scripts/generate-secrets.sh
+./tools/generate-secrets.sh
 
 # Start all services
-podman-compose up -d
+make compose-up
 
 # Check status
-podman-compose ps
+make compose-ps
 
 # Open the dashboard
 # Cloud:       https://werd.yourdomain.com
@@ -538,9 +648,9 @@ podman-compose ps
 ```bash
 git clone https://github.com/your-org/werd.git
 cd werd
-cp .env.example .env
-./scripts/generate-secrets.sh
-docker compose up -d
+cp src/deploy/compose/.env.example src/deploy/compose/.env
+./tools/generate-secrets.sh
+docker compose -f src/deploy/compose/docker-compose.yml --env-file src/deploy/compose/.env up -d
 ```
 
 ### docker-compose with Podman Socket
@@ -552,8 +662,8 @@ systemctl --user enable --now podman.socket
 # Point docker-compose at Podman
 export DOCKER_HOST=unix://$XDG_RUNTIME_DIR/podman/podman.sock
 
-# Use docker compose as usual
-docker compose up -d
+# Use make targets as usual (they use podman-compose internally)
+make compose-up
 ```
 
 ### Kubernetes (k3s — Single Node)
@@ -569,9 +679,9 @@ helm install werd werd/werd \
   --values values.yaml
 
 # Or generate manifests from compose
-kompose convert -f docker-compose.yml -o k8s/
+kompose convert -f src/deploy/compose/docker-compose.yml -o src/deploy/k8s/
 # Then manually refine and apply
-kubectl apply -f k8s/
+kubectl apply -f src/deploy/k8s/
 ```
 
 ### Residential Deployment (Behind NAT)
@@ -580,25 +690,25 @@ kubectl apply -f k8s/
 
 ```bash
 # Install FRP server + Caddy
-# See deploy/relay-vps/ for ready-to-use configs
-cd deploy/relay-vps
+# See src/deploy/relay/ for ready-to-use configs
+cd src/deploy/relay
 docker compose up -d
 ```
 
 **On your home box:**
 
 ```bash
-# Set access mode to residential in .env
+# Set access mode to residential in src/deploy/compose/.env
 WERD_ACCESS_MODE=residential
 FRP_SERVER_ADDR=relay-vps.example.com
 FRP_SERVER_PORT=7000
 FRP_TOKEN=your-secret-token
 
 # Start — FRP client container included automatically
-podman-compose --profile residential up -d
+podman-compose -f src/deploy/compose/docker-compose.yml --profile residential up -d
 ```
 
-### Compose Structure
+### Compose Structure (`src/deploy/compose/docker-compose.yml`)
 
 ```yaml
 services:
@@ -654,17 +764,17 @@ volumes:
 | # | Milestone | Status | Details | Dependencies |
 |---|---|---|---|---|
 | **1** | **Core Infrastructure** | | **Foundation: compose, networking, databases, proxy** | |
-| 1.1 | Project scaffolding | Not started | Directory structure, `docker-compose.yml` skeleton, `.env.example`, `scripts/`, `deploy/` directories | — |
+| 1.1 | Project scaffolding | Done | Directory structure, `docker-compose.yml` skeleton, `.env.example`, Makefiles, CI scripts, Dockerfiles | — |
 | 1.2 | PostgreSQL deployment | Not started | Shared PostgreSQL 17 with initialization script creating all databases (`werd`, `postiz`, `activepieces`, `mattermost`, `plausible`, `temporal`) | 1.1 |
 | 1.3 | Redis deployment | Not started | Shared Redis 7 with password auth, AOF persistence | 1.1 |
 | 1.4 | Caddy reverse proxy | Not started | Caddyfile with subdomain routing for all services, automatic TLS, security headers, WebSocket proxy | 1.1 |
 | 1.5 | Container networking | Not started | `werd-net` bridge network, DNS resolution between services, rootless Podman config | 1.1 |
 | 1.6 | Health checks & restart policies | Not started | Liveness/readiness probes for all services, `restart: unless-stopped`, dependency ordering (`depends_on` with health conditions) | 1.2–1.5 |
-| 1.7 | Secret generation script | Not started | `scripts/generate-secrets.sh` — generates all passwords, JWT secrets, encryption keys, writes to `.env` | 1.1 |
+| 1.7 | Secret generation script | Done | `tools/generate-secrets.sh` — generates all passwords, JWT secrets, encryption keys, writes to `.env` | 1.1 |
 | 1.8 | ClickHouse + Temporal | Not started | ClickHouse for Plausible events, Temporal for Postiz workflows (both with PostgreSQL backends) | 1.2 |
 | | | | | |
 | **2** | **Werd API Server (Go Backend)** | | **Core backend — auth, multi-project, orchestration** | |
-| 2.1 | Go project scaffolding | Not started | Go module, chi router, pgx connection pool, sqlc config, Dockerfile (multi-stage → distroless), compose service | 1.1 |
+| 2.1 | Go project scaffolding | Done | Go module, chi router, pgx connection pool, sqlc config, Dockerfile (multi-stage → distroless), compose service | 1.1 |
 | 2.2 | Database migrations | Not started | goose migration files for Werd core schema (projects, users, project_members, service_instances, alerts, etc.) | 2.1, 1.2 |
 | 2.3 | Authentication system | Not started | Local user accounts, bcrypt password hashing, JWT session tokens, middleware for route protection | 2.2 |
 | 2.4 | Multi-project CRUD | Not started | Create/read/update/delete projects, member management, role-based access control (owner/admin/member/viewer) | 2.3 |
@@ -686,7 +796,7 @@ volumes:
 | 3.8 | Plausible CE + ClickHouse | Not started | Deploy with PostgreSQL + ClickHouse, configure site creation API, verify tracking snippet | 1.2, 1.4, 1.8 |
 | | | | | |
 | **4** | **Werd Dashboard (React Frontend)** | | **SPA for project management and unified control** | |
-| 4.1 | React project scaffolding | Not started | Vite + React 19 + TypeScript, Tailwind CSS, shadcn/ui, React Router, TanStack Query, Dockerfile | 1.1 |
+| 4.1 | React project scaffolding | Done | Vite + React 19 + TypeScript, Tailwind CSS, shadcn/ui, React Router, TanStack Query, Dockerfile | 1.1 |
 | 4.2 | API type generation pipeline | Not started | openapi-typescript consuming Werd API's OpenAPI spec, automated in build | 2.10, 4.1 |
 | 4.3 | Auth flow | Not started | Login/logout, JWT token management, protected routes, user context | 2.3, 4.1 |
 | 4.4 | Project switcher + overview | Not started | Project list, create/switch projects, per-project dashboard with service health and recent alerts | 2.4, 4.3 |
@@ -760,7 +870,7 @@ volumes:
 
 ## Status
 
-Early stage — architecture defined, component selection complete, multi-project data model designed, technology decisions made (Go backend, React + TypeScript frontend, PostgreSQL core, Podman-first with Kubernetes path). Implementation beginning with core infrastructure (Phase 1).
+Phase 1 in progress — project scaffolding complete (monorepo structure, compose skeleton, Dockerfiles, CI pipeline, Makefiles). Architecture defined, component selection complete, multi-project data model designed, technology decisions made (Go backend, React + TypeScript frontend, PostgreSQL core, Podman-first with Kubernetes path). Next: bring up PostgreSQL + Redis + Caddy (tasks 1.2–1.5).
 
 ## License
 

@@ -8,6 +8,7 @@
 - [x] 2.1 Go project scaffolding — Go module, net/http server, sqlc config, Dockerfile, compose service
 - [x] 4.1 React project scaffolding — Vite, React 19, TypeScript, Tailwind, directory structure
 - [x] 1.2 PostgreSQL deployment — per-service users/databases, tuned config, init-db.sh
+- [x] 1.3 Redis deployment — tuned config, per-service DB numbering, AOF persistence
 
 ### In Progress
 - [ ] 1.3 Redis deployment

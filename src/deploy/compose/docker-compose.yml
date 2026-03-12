@@ -75,13 +75,16 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    command: redis-server --requirepass ${REDIS_PASSWORD} --appendonly yes
+    command: redis-server /usr/local/etc/redis/redis.conf --requirepass ${REDIS_PASSWORD}
     volumes:
       - redis-data:/data
+      - ./redis.conf:/usr/local/etc/redis/redis.conf:ro
+    # ports:
+    #   - "${REDIS_PORT:-6379}:6379"  # Uncomment for host access (RedisInsight, redis-cli)
     networks:
       - werd-net
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      test: ["CMD-SHELL", "REDISCLI_AUTH=${REDIS_PASSWORD} redis-cli ping"]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -143,6 +146,7 @@ services:
   #     AP_REDIS_HOST: redis
   #     AP_REDIS_PORT: 6379
   #     AP_REDIS_PASSWORD: ${REDIS_PASSWORD}
+  #     AP_REDIS_DATABASE: 3
   #     AP_ENCRYPTION_KEY: ${ACTIVEPIECES_ENCRYPTION_KEY}
   #   networks:
   #     - werd-net

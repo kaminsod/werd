@@ -97,3 +97,56 @@ psql -h localhost -U werd -d werd
 | `POSTGRES_PORT` | Host port for dev access (commented out by default) | `5432` |
 
 All passwords should be generated via `tools/generate-secrets.sh` — never use the defaults in production.
+
+## Redis
+
+Shared Redis 7 instance used for caching, sessions, and job queues. Services are isolated by database number to avoid key collisions.
+
+### Database Numbering
+
+| DB | Service | Usage |
+|---|---|---|
+| 0 | Werd API | Sessions, cache |
+| 1 | Postiz | BullMQ job queue, cache |
+| 2 | RSSHub | Route cache |
+| 3 | Activepieces | Flow queue, locks |
+
+All services share a single `REDIS_PASSWORD`. Redis ACLs don't support per-database access restrictions, so isolation is by convention (separate DB numbers). Each service's connection URL includes its assigned database number (e.g., `redis://:pass@redis:6379/1`).
+
+### Configuration Tuning
+
+`redis.conf` sets memory limits and eviction policy. The default `maxmemory` of **256 MB** targets a 4 GB host. Adjust for your hardware:
+
+| Host RAM | `maxmemory` |
+|---|---|
+| 2 GB | 128mb |
+| 4 GB | 256mb (default) |
+| 8 GB | 512mb |
+| 16 GB | 1gb |
+
+The eviction policy is `allkeys-lru` — when memory is full, Redis evicts the least-recently-used keys. This is safe for cache/session workloads. If a service needs guaranteed persistence (e.g., BullMQ jobs), it should use short-lived keys or rely on its own retry logic.
+
+Edit `redis.conf` directly — changes take effect on container restart.
+
+### Host Access (Development)
+
+To connect from your host (redis-cli, RedisInsight, etc.), uncomment the port mapping in `docker-compose.yml`:
+
+```yaml
+redis:
+  ports:
+    - "${REDIS_PORT:-6379}:6379"
+```
+
+Then connect:
+```bash
+redis-cli -h localhost -a <REDIS_PASSWORD from .env>
+# Or use RedisInsight at localhost:6379
+```
+
+### Environment Variables
+
+| Variable | Purpose | Default |
+|---|---|---|
+| `REDIS_PASSWORD` | Shared password for all Redis connections | `changeme` |
+| `REDIS_PORT` | Host port for dev access (commented out by default) | `6379` |

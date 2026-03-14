@@ -42,6 +42,7 @@ func main() {
 	projectService := service.NewProject(pool, queries)
 	alertService := service.NewAlert(queries)
 	keywordService := service.NewKeyword(queries)
+	notificationService := service.NewNotification(queries, cfg.NtfyURL)
 
 	// Seed admin user from env vars (idempotent).
 	if cfg.AdminEmail != "" && cfg.AdminPassword != "" {
@@ -53,8 +54,9 @@ func main() {
 	// Handlers and router.
 	authHandler := handler.NewAuth(authService)
 	projectHandler := handler.NewProject(projectService)
-	alertHandler := handler.NewAlert(alertService, keywordService)
-	r := router.New(authService, authHandler, projectHandler, alertHandler, queries, cfg.InternalAPIKey)
+	alertHandler := handler.NewAlert(alertService, keywordService, notificationService)
+	notificationHandler := handler.NewNotification(notificationService)
+	r := router.New(authService, authHandler, projectHandler, alertHandler, notificationHandler, queries, cfg.InternalAPIKey)
 
 	// HTTP server with graceful shutdown.
 	addr := fmt.Sprintf(":%s", cfg.APIPort)

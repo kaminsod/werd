@@ -17,6 +17,7 @@ func New(
 	authH *handler.Auth,
 	projectH *handler.ProjectHandler,
 	alertH *handler.AlertHandler,
+	notifH *handler.NotificationHandler,
 	queries *storage.Queries,
 	internalAPIKey string,
 ) http.Handler {
@@ -75,6 +76,13 @@ func New(
 			r.Get("/keywords", alertH.ListKeywords)
 			r.Post("/keywords", alertH.CreateKeyword)
 			r.Delete("/keywords/{kwID}", alertH.DeleteKeyword)
+
+			// Notification rules.
+			r.Get("/rules", notifH.ListRules)
+			r.Post("/rules", notifH.CreateRule)
+			r.Get("/rules/{ruleID}", notifH.GetRule)
+			r.Put("/rules/{ruleID}", notifH.UpdateRule)
+			r.Delete("/rules/{ruleID}", notifH.DeleteRule)
 		})
 	})
 

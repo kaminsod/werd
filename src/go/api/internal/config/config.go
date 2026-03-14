@@ -11,6 +11,7 @@ type Config struct {
 	RedisURL    string
 	JWTSecret      string
 	InternalAPIKey string
+	NtfyURL        string
 
 	// Optional: seed an admin user on first startup.
 	AdminEmail    string
@@ -24,6 +25,7 @@ func Load() (*Config, error) {
 		RedisURL:      os.Getenv("REDIS_URL"),
 		JWTSecret:      os.Getenv("WERD_JWT_SECRET"),
 		InternalAPIKey: os.Getenv("WERD_INTERNAL_API_KEY"),
+		NtfyURL:        envOr("WERD_NTFY_URL", "http://ntfy:2586"),
 		AdminEmail:     os.Getenv("WERD_ADMIN_EMAIL"),
 		AdminPassword: os.Getenv("WERD_ADMIN_PASSWORD"),
 	}

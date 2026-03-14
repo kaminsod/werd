@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strconv"
@@ -16,10 +17,11 @@ import (
 type AlertHandler struct {
 	alertSvc   *service.Alert
 	keywordSvc *service.Keyword
+	notifSvc   *service.Notification
 }
 
-func NewAlert(alertSvc *service.Alert, keywordSvc *service.Keyword) *AlertHandler {
-	return &AlertHandler{alertSvc: alertSvc, keywordSvc: keywordSvc}
+func NewAlert(alertSvc *service.Alert, keywordSvc *service.Keyword, notifSvc *service.Notification) *AlertHandler {
+	return &AlertHandler{alertSvc: alertSvc, keywordSvc: keywordSvc, notifSvc: notifSvc}
 }
 
 // --- Request/Response types ---
@@ -110,6 +112,10 @@ func (h *AlertHandler) IngestWebhook(w http.ResponseWriter, r *http.Request) {
 	status := http.StatusOK
 	if isNew {
 		status = http.StatusCreated
+		if h.notifSvc != nil {
+			alertCopy := *alert
+			go h.notifSvc.RouteAlert(context.Background(), &alertCopy)
+		}
 	}
 	writeJSON(w, status, alertInfoToResponse(alert))
 }

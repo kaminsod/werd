@@ -7,7 +7,7 @@ Core backend — auth, multi-project orchestration, webhook ingestion, cross-pos
 | # | Task | Status | Details | Dependencies |
 |---|---|---|---|---|
 | 2.1 | Go project scaffolding | Done | Go module, net/http server, sqlc config, Dockerfile, compose service | 1.1 |
-| 2.2 | Database migrations | Not started | goose migration files for core schema | 2.1, 1.2 |
+| 2.2 | Database migrations | Done | goose initial schema: 10 enums, 11 tables, updated_at trigger, 12 indexes | 2.1, 1.2 |
 | 2.3 | Authentication system | Not started | Local accounts, bcrypt, JWT sessions | 2.2 |
 | 2.4 | Multi-project CRUD | Not started | Projects, members, roles | 2.3 |
 | 2.5 | Service provisioning engine | Not started | Provision ntfy topics, changedetection watches, Umami sites per project | 2.4, 3.x |

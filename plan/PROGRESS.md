@@ -1,6 +1,6 @@
 # Progress
 
-## Current Phase: 1 — Core Infrastructure
+## Current Phase: 2 — Werd API Server
 
 ### Completed
 - [x] 1.1 Project scaffolding — directory structure, compose skeleton, .env.example, scripts, CI, Makefiles
@@ -12,19 +12,20 @@
 - [x] 1.4 Caddy reverse proxy — security headers, CORS, WebSocket, production + local Caddyfiles
 - [x] 1.5 Container networking — werd-net bridge, DNS diagnostics, rootless Podman checker
 - [x] 1.6 Health checks & restart policies — start_period, distroless healthcheck binary, probes for all services
+- [x] 2.2 Database migrations — goose initial schema: 10 enums, 11 tables, updated_at trigger, 12 indexes
 
 ### In Progress
 (none)
 
 ### Not Started
-(none — Phase 1 complete)
+- [ ] 2.3 Authentication system
 
 ## Phase Overview
 
 | Phase | Name | Status |
 |---|---|---|
 | 1 | Core Infrastructure | Done |
-| 2 | Werd API Server | Scaffolding done, awaiting Phase 1 |
+| 2 | Werd API Server | In progress |
 | 3 | Lightweight Services | Not started |
 | 4 | Werd Dashboard | Scaffolding done, awaiting Phase 2 |
 | 5 | Monitoring Pipeline | Not started |

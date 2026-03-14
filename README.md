@@ -772,7 +772,7 @@ volumes:
 | 1.1 | Project scaffolding | Done | Directory structure, `docker-compose.yml` skeleton, `.env.example`, Makefiles, CI scripts, Dockerfiles | — |
 | 1.2 | PostgreSQL deployment | Done | Shared PostgreSQL 17 with per-service users/databases, tuned config, init-db.sh with grants | 1.1 |
 | 1.3 | Redis deployment | Done | Shared Redis 7 with tuned config, per-service DB isolation, AOF persistence | 1.1 |
-| 1.4 | Caddy reverse proxy | Not started | Caddyfile with subdomain routing for all services, automatic TLS, security headers, WebSocket proxy | 1.1 |
+| 1.4 | Caddy reverse proxy | Done | Caddyfile with subdomain routing, auto-TLS, security headers, CORS, WebSocket proxy, local mode variant | 1.1 |
 | 1.5 | Container networking | Not started | `werd-net` bridge network, DNS resolution between services, rootless Podman config | 1.1 |
 | 1.6 | Health checks & restart policies | Not started | Liveness/readiness probes for all services, `restart: unless-stopped`, dependency ordering (`depends_on` with health conditions) | 1.2–1.5 |
 | 1.7 | Secret generation script | Done | `tools/generate-secrets.sh` — generates all passwords, JWT secrets, encryption keys, writes to `.env` | 1.1 |

@@ -9,10 +9,9 @@
 - [x] 4.1 React project scaffolding — Vite, React 19, TypeScript, Tailwind, directory structure
 - [x] 1.2 PostgreSQL deployment — per-service users/databases, tuned config, init-db.sh
 - [x] 1.3 Redis deployment — tuned config, per-service DB numbering, AOF persistence
+- [x] 1.4 Caddy reverse proxy — security headers, CORS, WebSocket, production + local Caddyfiles
 
 ### In Progress
-- [ ] 1.3 Redis deployment
-- [ ] 1.4 Caddy reverse proxy
 - [ ] 1.5 Container networking
 
 ### Not Started

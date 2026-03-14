@@ -10,8 +10,8 @@ services:
     environment:
       - DATABASE_URL=postgres://werd:${POSTGRES_PASSWORD}@postgres:5432/werd?sslmode=disable
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
-    ports:
-      - "8090:8090"
+    # ports:
+    #   - "8090:8090"  # Uncomment for direct access bypassing Caddy (debugging)
     depends_on:
       postgres:
         condition: service_healthy
@@ -30,8 +30,8 @@ services:
       context: ../../web
       dockerfile: Dockerfile
     restart: unless-stopped
-    ports:
-      - "3000:3000"
+    # ports:
+    #   - "3000:3000"  # Uncomment for direct access bypassing Caddy (debugging)
     networks:
       - werd-net
     healthcheck:
@@ -108,15 +108,27 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    environment:
+      WERD_DOMAIN: ${WERD_DOMAIN}
     volumes:
+      # Production (subdomain routing + auto-TLS):
       - ../caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # Local-only (port-based, no TLS) — swap the line above with:
+      # - ../caddy/Caddyfile.local:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
       - caddy-config:/config
     networks:
       - werd-net
     depends_on:
-      - werd-api
-      - werd-dashboard
+      werd-api:
+        condition: service_healthy
+      werd-dashboard:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:2019/config/ 2>/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   # ── Third-Party Services ──
 

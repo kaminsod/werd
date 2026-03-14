@@ -1,45 +1,114 @@
 # Werd — Production Caddyfile
-# Subdomain routing with automatic TLS via Let's Encrypt.
-# Replace {$WERD_DOMAIN} with your domain or set it as an environment variable.
+# Subdomain routing with automatic TLS via Let's Encrypt (HTTP-01 challenge).
+# Set WERD_DOMAIN as an environment variable or replace {$WERD_DOMAIN} below.
+
+# ── Shared snippets ──
+
+(security_headers) {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+	}
+}
+
+(cors_api) {
+	@cors_preflight method OPTIONS
+	handle @cors_preflight {
+		header Access-Control-Allow-Origin "https://werd.{$WERD_DOMAIN}"
+		header Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+		header Access-Control-Allow-Headers "Content-Type, Authorization"
+		header Access-Control-Allow-Credentials "true"
+		header Access-Control-Max-Age "86400"
+		respond "" 204
+	}
+	header Access-Control-Allow-Origin "https://werd.{$WERD_DOMAIN}"
+	header Access-Control-Allow-Credentials "true"
+}
+
+# ── Core (Werd) ──
 
 werd.{$WERD_DOMAIN} {
+	import security_headers
 	reverse_proxy werd-dashboard:3000
 }
 
 api.{$WERD_DOMAIN} {
+	import security_headers
+	import cors_api
+
+	# WebSocket support for real-time alert feed
+	@websocket {
+		header Connection *Upgrade*
+		header Upgrade websocket
+	}
+	reverse_proxy @websocket werd-api:8090
+
+	# API requests — 10 MB body limit (webhook payloads, file uploads)
+	request_body {
+		max_size 10MB
+	}
 	reverse_proxy werd-api:8090
 }
 
-# Uncomment as services are activated:
+# ── Third-Party Services ──
+# Uncomment as services are activated.
 
 # chat.{$WERD_DOMAIN} {
+# 	import security_headers
+#
+# 	# Mattermost requires WebSocket for real-time messaging
+# 	@mattermost_ws {
+# 		path /api/v4/websocket
+# 	}
+# 	reverse_proxy @mattermost_ws mattermost:8065
+#
+# 	# Allow file uploads up to 50 MB
+# 	request_body {
+# 		max_size 50MB
+# 	}
 # 	reverse_proxy mattermost:8065
 # }
 
 # flow.{$WERD_DOMAIN} {
+# 	import security_headers
 # 	reverse_proxy activepieces:8080
 # }
 
 # postiz.{$WERD_DOMAIN} {
+# 	import security_headers
+# 	request_body {
+# 		max_size 25MB
+# 	}
 # 	reverse_proxy postiz:4200
 # }
 
 # monitor.{$WERD_DOMAIN} {
+# 	import security_headers
 # 	reverse_proxy changedetect:5000
 # }
 
 # rss.{$WERD_DOMAIN} {
+# 	import security_headers
 # 	reverse_proxy rsshub:1200
 # }
 
 # reader.{$WERD_DOMAIN} {
+# 	import security_headers
 # 	reverse_proxy folo:2233
 # }
 
 # ntfy.{$WERD_DOMAIN} {
+# 	import security_headers
+#
+# 	# ntfy uses WebSocket and Server-Sent Events for real-time push
 # 	reverse_proxy ntfy:2586
 # }
 
 # analytics.{$WERD_DOMAIN} {
+# 	import security_headers
 # 	reverse_proxy plausible:8000
 # }

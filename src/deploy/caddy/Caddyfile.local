@@ -1,10 +1,95 @@
 # Werd — Local-only Caddyfile
-# No TLS, access via localhost ports.
+# Port-based routing, no TLS, no domain required.
+# Access via http://localhost:<port> or http://<lan-ip>:<port>.
+#
+# Port assignments:
+#   3080 = Werd Dashboard
+#   3081 = Werd API
+#   3082 = Mattermost
+#   3083 = Activepieces
+#   3084 = Postiz
+#   3085 = changedetection.io
+#   3086 = RSSHub
+#   3087 = Folo
+#   3088 = ntfy
+#   3089 = Plausible
+
+(security_headers_local) {
+	header {
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+	}
+}
+
+# ── Core (Werd) ──
 
 :3080 {
+	import security_headers_local
 	reverse_proxy werd-dashboard:3000
 }
 
 :3081 {
+	import security_headers_local
+
+	# CORS for local dev (dashboard on :3080 calling API on :3081)
+	header Access-Control-Allow-Origin "*"
+	header Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+	header Access-Control-Allow-Headers "Content-Type, Authorization"
+
+	request_body {
+		max_size 10MB
+	}
 	reverse_proxy werd-api:8090
 }
+
+# ── Third-Party Services ──
+# Uncomment as services are activated.
+
+# :3082 {
+# 	import security_headers_local
+# 	request_body {
+# 		max_size 50MB
+# 	}
+# 	reverse_proxy mattermost:8065
+# }
+
+# :3083 {
+# 	import security_headers_local
+# 	reverse_proxy activepieces:8080
+# }
+
+# :3084 {
+# 	import security_headers_local
+# 	request_body {
+# 		max_size 25MB
+# 	}
+# 	reverse_proxy postiz:4200
+# }
+
+# :3085 {
+# 	import security_headers_local
+# 	reverse_proxy changedetect:5000
+# }
+
+# :3086 {
+# 	import security_headers_local
+# 	reverse_proxy rsshub:1200
+# }
+
+# :3087 {
+# 	import security_headers_local
+# 	reverse_proxy folo:2233
+# }
+
+# :3088 {
+# 	import security_headers_local
+# 	reverse_proxy ntfy:2586
+# }
+
+# :3089 {
+# 	import security_headers_local
+# 	reverse_proxy plausible:8000
+# }

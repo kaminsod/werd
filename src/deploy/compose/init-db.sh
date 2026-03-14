@@ -25,10 +25,6 @@ EOSQL
 
 # Service databases — each gets a dedicated user.
 # Passwords are passed via environment variables from docker-compose.yml.
-create_service_db "postiz"       "postiz"       "${POSTIZ_DB_PASSWORD}"
-create_service_db "activepieces" "activepieces"  "${ACTIVEPIECES_DB_PASSWORD}"
-create_service_db "mattermost"   "mattermost"    "${MATTERMOST_DB_PASSWORD}"
-create_service_db "plausible"    "plausible"      "${PLAUSIBLE_DB_PASSWORD}"
-create_service_db "temporal"     "temporal"       "${TEMPORAL_DB_PASSWORD}"
+create_service_db "umami" "umami" "${UMAMI_DB_PASSWORD}"
 
 echo "All service databases and users created."

@@ -5,14 +5,10 @@
 # Port assignments:
 #   3080 = Werd Dashboard
 #   3081 = Werd API
-#   3082 = Mattermost
-#   3083 = Activepieces
-#   3084 = Postiz
-#   3085 = changedetection.io
-#   3086 = RSSHub
-#   3087 = Folo
-#   3088 = ntfy
-#   3089 = Plausible
+#   3082 = changedetection.io
+#   3083 = RSSHub
+#   3084 = ntfy
+#   3085 = Umami
 
 (security_headers_local) {
 	header {
@@ -45,51 +41,25 @@
 	reverse_proxy werd-api:8090
 }
 
-# ── Third-Party Services ──
+# ── Lightweight Services ──
 # Uncomment as services are activated.
 
 # :3082 {
 # 	import security_headers_local
-# 	request_body {
-# 		max_size 50MB
-# 	}
-# 	reverse_proxy mattermost:8065
+# 	reverse_proxy changedetect:5000
 # }
 
 # :3083 {
 # 	import security_headers_local
-# 	reverse_proxy activepieces:8080
+# 	reverse_proxy rsshub:1200
 # }
 
 # :3084 {
 # 	import security_headers_local
-# 	request_body {
-# 		max_size 25MB
-# 	}
-# 	reverse_proxy postiz:4200
+# 	reverse_proxy ntfy:2586
 # }
 
 # :3085 {
 # 	import security_headers_local
-# 	reverse_proxy changedetect:5000
-# }
-
-# :3086 {
-# 	import security_headers_local
-# 	reverse_proxy rsshub:1200
-# }
-
-# :3087 {
-# 	import security_headers_local
-# 	reverse_proxy folo:2233
-# }
-
-# :3088 {
-# 	import security_headers_local
-# 	reverse_proxy ntfy:2586
-# }
-
-# :3089 {
-# 	import security_headers_local
-# 	reverse_proxy plausible:8000
+# 	reverse_proxy umami:3000
 # }

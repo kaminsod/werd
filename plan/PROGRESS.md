@@ -16,7 +16,6 @@
 
 ### Not Started
 - [ ] 1.6 Health checks & restart policies
-- [ ] 1.8 ClickHouse + Temporal
 
 ## Phase Overview
 
@@ -24,7 +23,7 @@
 |---|---|---|
 | 1 | Core Infrastructure | In progress |
 | 2 | Werd API Server | Scaffolding done, awaiting Phase 1 |
-| 3 | Third-Party Services | Not started |
+| 3 | Lightweight Services | Not started |
 | 4 | Werd Dashboard | Scaffolding done, awaiting Phase 2 |
 | 5 | Monitoring Pipeline | Not started |
 | 6 | Notification & Routing | Not started |
@@ -32,3 +31,7 @@
 | 8 | Network Access & Tunnel | Not started |
 | 9 | Kubernetes Deployment | Not started |
 | 10 | Hardening & Documentation | Not started |
+
+## Architecture Simplification (2026-03-13)
+
+Removed heavy dependencies (Mattermost, Postiz, Temporal, Elasticsearch, Activepieces, Plausible, ClickHouse, Folo). Cross-posting, notification routing, and scheduling built directly into the Werd API. Plausible replaced by Umami (PostgreSQL-only). See `design/DESIGN_LOG.md` for full rationale.

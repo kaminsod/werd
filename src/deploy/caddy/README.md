@@ -31,14 +31,10 @@ All subdomains use `{$WERD_DOMAIN}` — set `WERD_DOMAIN` in `.env`.
 |---|---|---|
 | `werd.{domain}` | Werd Dashboard | 3000 |
 | `api.{domain}` | Werd API | 8090 |
-| `chat.{domain}` | Mattermost | 8065 |
-| `flow.{domain}` | Activepieces | 8080 |
-| `postiz.{domain}` | Postiz | 4200 |
 | `monitor.{domain}` | changedetection.io | 5000 |
 | `rss.{domain}` | RSSHub | 1200 |
-| `reader.{domain}` | Folo | 2233 |
 | `ntfy.{domain}` | ntfy | 2586 |
-| `analytics.{domain}` | Plausible | 8000 |
+| `analytics.{domain}` | Umami | 3000 |
 
 ## Port Mapping (Local)
 
@@ -46,14 +42,10 @@ All subdomains use `{$WERD_DOMAIN}` — set `WERD_DOMAIN` in `.env`.
 |---|---|
 | 3080 | Werd Dashboard |
 | 3081 | Werd API |
-| 3082 | Mattermost |
-| 3083 | Activepieces |
-| 3084 | Postiz |
-| 3085 | changedetection.io |
-| 3086 | RSSHub |
-| 3087 | Folo |
-| 3088 | ntfy |
-| 3089 | Plausible |
+| 3082 | changedetection.io |
+| 3083 | RSSHub |
+| 3084 | ntfy |
+| 3085 | Umami |
 
 ## Security Headers
 
@@ -77,8 +69,7 @@ In local mode, CORS is set to `*` since there's no domain to restrict to.
 ## WebSocket Support
 
 Caddy proxies WebSocket connections for:
-- **Werd API** — real-time alert feed (`/ws` endpoint, task 2.9)
-- **Mattermost** — real-time messaging (`/api/v4/websocket`)
+- **Werd API** — real-time alert feed (`/ws` endpoint)
 - **ntfy** — push notification streaming
 
 ## Request Body Limits
@@ -86,8 +77,6 @@ Caddy proxies WebSocket connections for:
 | Service | Limit | Reason |
 |---|---|---|
 | Werd API | 10 MB | Webhook payloads, file uploads |
-| Mattermost | 50 MB | File attachments, image uploads |
-| Postiz | 25 MB | Media uploads for social posts |
 | Others | Caddy default (varies) | No special requirements |
 
 ## Adding a New Service

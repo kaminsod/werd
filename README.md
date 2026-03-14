@@ -7,21 +7,21 @@ Werd is a unified stack for managing your online presence across social media pl
 **Core design goals:**
 - **Single-box deployable** — runs on a single machine via `docker-compose.yml`, on any network (cloud VPS, residential behind NAT, or local-only)
 - **Podman-first** — targets Podman as the primary container runtime, with Docker support as secondary
-- **Scales out when needed** — each sub-service can be independently scaled in a distributed Kubernetes environment (tested locally with k3s)
-- **Multi-project isolation** — supports multiple fully-isolated projects, each with its own channels, platform connections, keywords, notification preferences, and team members
+- **Lightweight** — core stack runs in ~1 GB RAM; heavy third-party services replaced by built-in Go modules and purpose-built lightweight tools
+- **Scales out when needed** — each component can be independently scaled in a distributed Kubernetes environment (tested locally with k3s)
+- **Multi-project isolation** — supports multiple fully-isolated projects, each with its own platform connections, keywords, notification preferences, and team members
 - **Fully open source** — every component is self-hostable with an OSI-approved license (the only external dependency is an optional LLM API)
 
 ## What It Does
 
 - **Manage everything from one UI** — a custom React-based web dashboard provides a single pane of glass for all projects, services, alerts, and publishing across the entire stack
 - **Run multiple isolated projects** — each project has its own keyword sets, monitored sources, platform connections, notification channels, and team members with role-based access
-- **Cross-post everywhere from one place** — schedule and publish to LinkedIn, X, Bluesky, Reddit, Mastodon, Discord, YouTube, and 10+ more platforms
-- **Monitor mentions and keywords** — track brand mentions, competitor activity, and relevant discussions across Reddit, Hacker News, Lobsters, the web, news sites, and RSS feeds
-- **Route notifications intelligently** — funnel all alerts into organized team chat channels with push notifications for high-priority items
-- **Draft AI-assisted responses** — automatically generate contextual response drafts for human review and approval
+- **Cross-post everywhere from one place** — schedule and publish to LinkedIn, X, Bluesky, Reddit, Mastodon, and more via direct platform API integration built into the Werd API
+- **Monitor mentions and keywords** — track brand mentions, competitor activity, and relevant discussions across Reddit, Hacker News, the web, news sites, and RSS feeds
+- **Route notifications intelligently** — funnel alerts to push notifications (ntfy) and the dashboard alert feed, with configurable per-project routing rules
+- **Draft AI-assisted responses** — automatically generate contextual response drafts for human review and approval via any LLM API
 - **Syndicate blog content** — publish once on your blog, auto-distribute to Dev.to, Hashnode, and social platforms with canonical URLs preserved
-- **Track analytics** — privacy-friendly web analytics without cookie banners
-- **Automate workflows** — build custom automation pipelines connecting any combination of the above
+- **Track analytics** — privacy-friendly web analytics via Umami (no cookies, no ClickHouse — just PostgreSQL)
 
 ## Architecture
 
@@ -33,8 +33,8 @@ Werd is a unified stack for managing your online presence across social media pl
                                       |
                           +-----------v------------+
                           |     Werd API Server    |  Go backend
-                          |  (orchestration, auth, |  (chi + pgx + sqlc)
-                          |   multi-project state) |
+                          |  (orchestration, auth, |  (chi + pgx + sqlc + river)
+                          |   cross-posting, route)|
                           +-----------+------------+
                                       |
                     +-----------------+-----------------+
@@ -42,30 +42,19 @@ Werd is a unified stack for managing your online presence across social media pl
                     v                 v                 v
           +--------+------+  +-------+-------+  +------+-------+
           |   Caddy       |  |  PostgreSQL   |  |    Redis     |
-          |  (reverse     |  | (werd core +  |  |  (caching,   |
-          |   proxy, TLS) |  |  per-service) |  |   queues)    |
-          +--------+------+  +-------+-------+  +------+-------+
-                   |                 |                  |
-    +--------------+----+------------+--+---------------+--------+
-    |         |         |        |      |        |      |        |
-+---v---+ +---v---+ +---v--+ +--v---+ +v-----+ +v---+ +v-----+ |
-|Postiz | |Active-| |Matter| | ntfy | |change| |RSS | | Folo | |
-|(cross-| |pieces | |most  | |      | |detect| |Hub | |      | |
-| post) | |(work- | |(chat)| |      | |.io   | |    | |      | |
-+---+---+ | flow) | +------+ +------+ +------+ +----+ +------+ |
-    |     +---+---+                                             |
-    |         |         +-----------+     +------------------+  |
-    v         v         |  LLM API  |     | LinkedIn, X,     |  |
-+---+---+ +---+---+    | (optional |     | Bluesky, Reddit, |  |
-|Tempor-| |       |    |  drafting)|     | Mastodon, YT ... |  |
-| al    | |       |    +-----------+     +------------------+  |
-+-------+ +-------+                                            |
-              +------------------------------------------------+
-              |
-    +---------+---------+    +-----------+
-    | Plausible CE      |    | ClickHouse|
-    | (web analytics)   +--->| (events)  |
-    +-------------------+    +-----------+
+          |  (reverse     |  | (werd + umami)|  |  (caching,   |
+          |   proxy, TLS) |  |               |  |   queues)    |
+          +---------------+  +---------------+  +--------------+
+                   |
+    +--------------+----------+----------+----------+
+    |              |          |          |          |
++---v---+    +----v----+ +---v---+ +---v---+  +---v--------+
+| ntfy  |    | change  | | RSS  | | Umami |  | LinkedIn,  |
+| (push)|    | detect  | | Hub  | | (ana- |  | X, Bluesky,|
+|       |    | .io     | |      | | lytics|  | Reddit,    |
++-------+    +---------+ +------+ +-------+  | Mastodon...|
+                                              +------------+
+                                                (direct API)
 
     [Residential / NAT access]
     +-------------+          +-------------+
@@ -82,22 +71,18 @@ Every component is open source (OSI-approved licenses) and fully self-hostable. 
 
 | Component | Tech | Role |
 |---|---|---|
-| **Werd API Server** | Go (chi, pgx, sqlc) | Core backend — multi-project orchestration, auth, service aggregation, webhook ingestion, background jobs |
+| **Werd API Server** | Go (chi, pgx, sqlc, river) | Core backend — multi-project orchestration, auth, cross-posting, notification routing, webhook ingestion, background jobs |
 | **Werd Dashboard** | React + TypeScript (Vite) | SPA frontend — project management, unified alert feed, publishing, configuration, analytics |
 
-### Third-Party Services
+### Lightweight Services
 
 | Component | Tool | Role | License |
 |---|---|---|---|
 | Reverse proxy | [Caddy](https://github.com/caddyserver/caddy) | Automatic HTTPS, reverse proxy, subdomain routing | Apache-2.0 |
-| Cross-posting & scheduling | [Postiz](https://github.com/gitroomhq/postiz-app) | Publish to 17+ platforms from one dashboard | AGPL-3.0 |
-| Workflow automation | [Activepieces](https://github.com/activepieces/activepieces) | Connect services, build automation pipelines | MIT (Community Edition) |
-| Team chat & notifications | [Mattermost](https://github.com/mattermost/mattermost) | Notification hub with organized channels | AGPL-3.0 |
 | Web & page monitoring | [changedetection.io](https://github.com/dgtlmoon/changedetection.io) | Track changes on any web page, keyword alerts | Apache-2.0 |
 | RSS feed generation | [RSSHub](https://github.com/DIYgod/RSSHub) | Turn any website into an RSS feed (1000+ routes) | MIT |
-| RSS reader | [Folo](https://github.com/RSSNext/Folo) | AI-powered feed reader for manual browsing | GPL-3.0 |
 | Push notifications | [ntfy](https://github.com/binwiederhier/ntfy) | Instant push alerts to phone/desktop via HTTP | Apache-2.0 |
-| Web analytics | [Plausible CE](https://github.com/plausible/analytics) | Privacy-friendly analytics (no cookies) | AGPL-3.0 |
+| Web analytics | [Umami](https://github.com/umami-software/umami) | Privacy-friendly analytics (no cookies, PostgreSQL-only) | MIT |
 | Reddit monitoring | Custom Go service using [Reddit API](https://www.reddit.com/dev/api/) | Stream subreddits for keyword matches | Apache-2.0 |
 | Hacker News monitoring | Custom poller using [HN API](https://github.com/HackerNews/API) | Poll new stories/comments for keyword matches | Public API |
 | Blog syndication | [cross-post CLI](https://github.com/shahednasser/cross-post) | Auto-publish to Dev.to and Hashnode | MIT |
@@ -106,15 +91,9 @@ Every component is open source (OSI-approved licenses) and fully self-hostable. 
 
 | Component | Tool | Role | License |
 |---|---|---|---|
-| Database | [PostgreSQL 17](https://github.com/postgres/postgres) | Shared DB server — Werd core DB + per-service databases | PostgreSQL License |
-| Cache / queue | [Redis 7](https://github.com/redis/redis) | Shared cache, session store, and job queue backend | BSD-3-Clause |
-| Event store | [ClickHouse](https://github.com/ClickHouse/ClickHouse) | High-performance analytics DB for Plausible events | Apache-2.0 |
-| Workflow engine | [Temporal](https://github.com/temporalio/temporal) | Durable workflow execution for Postiz | MIT |
+| Database | [PostgreSQL 17](https://github.com/postgres/postgres) | Shared DB server — Werd core DB + Umami analytics | PostgreSQL License |
+| Cache / queue | [Redis 7](https://github.com/redis/redis) | Shared cache, session store, and RSSHub cache | BSD-3-Clause |
 | Tunnel (residential) | [FRP](https://github.com/fatedier/frp) | Expose services from behind NAT/CGNAT to the internet | Apache-2.0 |
-
-> **Note on n8n:** The original design considered [n8n](https://github.com/n8n-io/n8n) for workflow automation. n8n uses a "Sustainable Use License" which is **not OSI-approved open source**. We use [Activepieces](https://github.com/activepieces/activepieces) (MIT) instead. If you prefer n8n, it is self-hostable and can be swapped in.
-
-> **Note on Activepieces multi-tenancy:** The Activepieces Community Edition (MIT) operates as a single project. True multi-tenancy (per-project flows, API keys, quotas) requires the commercial Enterprise/Embed license. The Werd API Server handles project isolation at the orchestration layer — scoping flows by naming convention and managing per-project webhook routing — so Community Edition works for most deployments. Enterprise is only needed if you require fully isolated Activepieces projects with per-tenant UIs.
 
 ### How the pieces connect
 
@@ -127,16 +106,16 @@ Every component is open source (OSI-approved licenses) and fully self-hostable. 
 
 **Routing pipeline:**
 1. All monitoring sources send webhooks to the **Werd API Server**, which tags alerts with the matching project(s)
-2. Werd API routes alerts to **Activepieces** flows for processing, or directly to **Mattermost** channels (per-project team → per-concern channel)
-3. High-priority alerts also push to **ntfy** (per-project topic) for instant mobile/desktop notifications
-4. Activepieces optionally calls an LLM API to draft contextual responses, posted back to Mattermost for human review
-5. The **Werd Dashboard** aggregates alerts from all sources into a unified, filterable, per-project feed
+2. Werd API evaluates per-project **notification rules** and fans out to destinations (ntfy topics, dashboard alert feed, external webhooks)
+3. High-priority alerts push to **ntfy** (per-project topic) for instant mobile/desktop notifications
+4. Optionally, Werd API calls an **LLM API** to draft contextual responses, surfaced in the dashboard for human review
+5. The **Werd Dashboard** aggregates alerts from all sources into a unified, filterable, per-project feed via WebSocket
 
 **Publishing pipeline:**
-1. Content is created and scheduled via the **Werd Dashboard** (which wraps the Postiz API) or directly in Postiz
-2. Postiz publishes to all connected social platforms simultaneously (per-project platform connections)
+1. Content is created and scheduled via the **Werd Dashboard**
+2. Werd API publishes to connected social platforms via **direct API integration** (X, LinkedIn, Bluesky, Reddit, Mastodon, etc.)
 3. Blog posts are syndicated to Dev.to and Hashnode via **cross-post CLI**
-4. **Plausible** tracks resulting traffic and referral sources (per-project site)
+4. **Umami** tracks resulting traffic and referral sources (per-project site)
 
 ## Technical Details
 
@@ -146,13 +125,11 @@ Multi-project isolation is a core design principle. The **Werd API Server** is t
 
 | Sub-Service | Per-Project Isolation Strategy |
 |---|---|
-| Postiz | One Postiz **organization** per project. Each org has its own social connections, scheduled posts, and team members. (Limitation: OAuth app credentials are instance-wide; users can only belong to one org.) |
-| Activepieces | CE: Flows namespaced by project via naming convention (`proj_{id}_*`) and webhook URL routing. Enterprise: One Activepieces **project** per Werd project. |
-| Mattermost | One Mattermost **team** per project. Channels within the team mirror concern types (`#mentions`, `#competitors`, `#github`, etc.). Bot user per team. |
+| Social platforms | Per-project OAuth connections and credentials stored in `platform_connections` table (encrypted at rest) |
 | ntfy | One **topic prefix** per project (e.g., `werd-proj1-high`, `werd-proj1-github`). ACL rules restrict access per project. |
 | changedetection.io | Watches **tagged** by project ID. Webhook URLs include project routing info. |
 | RSSHub | Feed URLs parameterized per project (keyword sets). |
-| Plausible | One **site** per project. Shared API key scoped by site. |
+| Umami | One **site** per project. Shared API key scoped by site. |
 | Reddit/HN monitors | Per-project keyword sets and subreddit lists, managed by Werd API, stored in PostgreSQL. |
 
 The Werd API Server is the source of truth for project configuration. It provisions and deprovisions sub-service resources via their APIs when projects are created/modified/deleted.
@@ -165,7 +142,6 @@ PostgreSQL is the right choice for Werd's core data store:
 - **JSONB columns** provide flexibility for service-specific configuration without schema changes (each sub-service has different config shapes)
 - **Row-level security (RLS)** can enforce project isolation at the database level, preventing cross-project data leaks even in case of application bugs
 - **LISTEN/NOTIFY** enables real-time event propagation to the API server (e.g., new alert → push to connected dashboard clients via WebSocket)
-- **Already required** by Postiz, Activepieces, Mattermost, and Plausible — one PostgreSQL instance with multiple databases reduces operational overhead
 
 **Werd core database schema (conceptual):**
 
@@ -193,8 +169,8 @@ project_members
 service_instances                 -- maps projects to sub-service resources
   id              UUID PK
   project_id      UUID FK → projects
-  service         ENUM (postiz, activepieces, mattermost, ntfy, changedetect, plausible, ...)
-  external_id     TEXT           -- org ID, team ID, site ID, etc. in the sub-service
+  service         ENUM (ntfy, changedetect, umami, ...)
+  external_id     TEXT           -- topic prefix, site ID, etc. in the sub-service
   config          JSONB          -- service-specific configuration
   status          ENUM (provisioning, active, error, deprovisioning)
 
@@ -237,8 +213,8 @@ notification_rules
   project_id      UUID FK → projects
   source_type     ENUM (reddit, hn, web, rss, github, all)
   min_severity    ENUM (low, medium, high, critical)
-  destination     ENUM (mattermost, ntfy, email, webhook)
-  config          JSONB          -- channel name, topic, email addr, URL, etc.
+  destination     ENUM (ntfy, email, webhook)
+  config          JSONB          -- topic, email addr, URL, etc.
 
 published_posts
   id              UUID PK
@@ -247,7 +223,6 @@ published_posts
   platforms       TEXT[]
   scheduled_at    TIMESTAMPTZ
   published_at    TIMESTAMPTZ
-  postiz_post_id  TEXT           -- reference to Postiz
   status          ENUM (draft, scheduled, publishing, published, failed)
 
 audit_log
@@ -264,21 +239,17 @@ audit_log
 | Database | Owner | Purpose |
 |---|---|---|
 | `werd` | Werd API Server | Core project/user/alert/config data (schema above) |
-| `postiz` | Postiz | Organizations, integrations, scheduled posts |
-| `activepieces` | Activepieces | Flows, connections, executions |
-| `mattermost` | Mattermost | Teams, channels, messages, users |
-| `plausible` | Plausible | Sites, goals, configuration (events are in ClickHouse) |
-| `temporal` | Temporal | Workflow engine state (required by Postiz) |
+| `umami` | Umami | Privacy-friendly web analytics |
 
 ### Backend Architecture (Go)
 
 The Werd API Server is written in **Go**, chosen for this workload because:
 
-- **Low resource footprint** — 15-30 MB RSS, 5-15 MB container image (static binary in distroless). Critical when sharing a single box with 10+ other services.
-- **Native concurrency** — goroutines are the natural fit for the core loop: poll 10 service APIs concurrently, ingest webhooks, run background sync/dedup jobs, serve HTTP — all in one process without a job framework.
+- **Low resource footprint** — 15-30 MB RSS, 5-15 MB container image (static binary in distroless). Critical when sharing a single box with other services.
+- **Native concurrency** — goroutines are the natural fit for the core loop: poll service APIs concurrently, ingest webhooks, run background sync/dedup jobs, serve HTTP — all in one process without a job framework.
 - **Best PostgreSQL integration** — pgx v5 is the strongest PostgreSQL driver across ecosystems, with full LISTEN/NOTIFY, JSONB, arrays, COPY protocol support. Paired with sqlc for compile-time-checked SQL with generated Go types.
 - **Single binary deployment** — no runtime, no `node_modules`, no V8 engine. One static binary, one minimal Dockerfile.
-- **Mattermost native client** — the official Go client library is maintained by the Mattermost team.
+- **Direct platform API integration** — social media platform APIs are straightforward HTTP/OAuth2 calls, well-suited to Go's standard library and available client packages.
 
 **Go stack:**
 
@@ -287,21 +258,23 @@ The Werd API Server is written in **Go**, chosen for this workload because:
 | HTTP routing | [chi](https://github.com/go-chi/chi) |
 | PostgreSQL | [pgx v5](https://github.com/jackc/pgx) + [sqlc](https://github.com/sqlc-dev/sqlc) |
 | Migrations | [goose](https://github.com/pressly/goose) |
-| Background jobs | Goroutines + `time.Ticker`; [river](https://github.com/riverqueue/river) for persistent job queue |
+| Background jobs | [river](https://github.com/riverqueue/river) for persistent job queue (post scheduling, sync) |
 | Config | [envconfig](https://github.com/kelseyhightower/envconfig) |
 | WebSocket | `nhooyr.io/websocket` (real-time alert push to dashboard) |
-| API client codegen | [oapi-codegen](https://github.com/oapi-codegen/oapi-codegen) (for services with OpenAPI specs) |
 | OpenAPI spec generation | [swag](https://github.com/swaggo/swag) (consumed by frontend via openapi-typescript) |
 | Container | Multi-stage: `golang:1.23` builder → `gcr.io/distroless/static` runtime |
 
 **Key responsibilities:**
 - Authentication (local accounts, session management, optional OIDC/SSO)
 - Multi-project orchestration (provision/deprovision sub-service resources per project)
+- Cross-posting to social platforms (direct API integration — X, LinkedIn, Bluesky, Reddit, Mastodon)
+- Post scheduling via river persistent job queue
+- OAuth token management for platform connections (encrypted storage)
 - Webhook ingestion (receive alerts from monitoring bots, tag with project, deduplicate, persist)
-- Service aggregation (proxy/aggregate data from Postiz, Mattermost, Activepieces, Plausible APIs)
+- Notification routing (evaluate rules, fan out to ntfy topics / dashboard / webhooks)
+- LLM-assisted response drafting (direct HTTP call to configurable LLM API)
 - Background sync (poll services for state changes, sync to Werd DB)
 - Real-time push (WebSocket to dashboard clients for live alert feed)
-- Notification routing (evaluate rules, fan out to Mattermost channels / ntfy topics)
 
 ### Frontend Architecture (React + TypeScript)
 
@@ -324,12 +297,11 @@ The Werd Dashboard is a **React + TypeScript SPA**, built with Vite:
 - **Project switcher** — top-level navigation between isolated projects
 - **Overview** — per-project service health, recent alerts, upcoming scheduled posts
 - **Alert feed** — unified, filterable, searchable alert list with triage actions (dismiss, flag, respond)
-- **Publishing** — create/schedule/manage posts across platforms (wraps Postiz API per project)
+- **Publishing** — create/schedule/manage posts across platforms, preview, platform-specific formatting
 - **Monitoring config** — manage keywords, subreddits, watched URLs, RSS feeds per project
-- **Platforms** — connect/disconnect social media accounts per project
-- **Notifications** — configure routing rules, channel mappings, priority thresholds per project
-- **Workflows** — view/trigger Activepieces flows, execution history
-- **Analytics** — embedded Plausible stats, cross-platform engagement metrics
+- **Platforms** — connect/disconnect social media accounts per project (direct OAuth flows)
+- **Notifications** — configure routing rules, priority thresholds per project
+- **Analytics** — embedded Umami stats, cross-platform engagement metrics
 - **Settings** — user management, roles, project settings, service configuration
 
 ### Container Runtime
@@ -349,15 +321,15 @@ The Werd Dashboard is a **React + TypeScript SPA**, built with Vite:
 Kubernetes is a **good fit for scaling Werd** beyond a single box, but adds significant complexity (~750 MB RAM overhead for k3s, steep learning curve). The strategy is **compose-first, Kubernetes when you need to scale**.
 
 **Why Kubernetes works for Werd:**
-- Each sub-service is a separate Deployment, scalable independently (e.g., scale Reddit monitors without scaling Mattermost)
-- Helm charts exist for all major infrastructure components (PostgreSQL via CloudNativePG/Bitnami, Redis via Bitnami, ClickHouse via Altinity operator, Mattermost official charts, Plausible and ntfy community charts)
+- Each component is a separate Deployment, scalable independently (e.g., scale Reddit monitors without scaling the API)
+- Helm charts exist for all major infrastructure components (PostgreSQL via CloudNativePG/Bitnami, Redis via Bitnami)
 - Namespace-based isolation can map to projects for additional separation (RBAC, NetworkPolicies, ResourceQuotas)
 - Rolling updates, self-healing, and health check-driven restarts built in
 - Horizontal Pod Autoscaler (HPA) for automatic scaling based on load
 
 **k3s for local/single-node testing:**
 - Lightweight single-binary Kubernetes distribution
-- ~500-768 MB RAM baseline overhead (acceptable on 16+ GB machines, avoid on <8 GB)
+- ~500-768 MB RAM baseline overhead (acceptable on 8+ GB machines)
 - Use SQLite backend (default), disable unused components (Traefik if using Caddy, ServiceLB, metrics-server)
 - `k3s server --disable traefik --disable servicelb`
 
@@ -390,18 +362,12 @@ All services communicate over an internal container network (`werd-net`). Only t
 | Caddy | 80, 443 | Host-mapped (entry point for all HTTP traffic) |
 | Werd Dashboard | 3000 | Via Caddy: `werd.yourdomain.com` |
 | Werd API | 8090 | Via Caddy: `api.yourdomain.com` |
-| Postiz | 4200 | Via Caddy: `postiz.yourdomain.com` |
-| Activepieces | 8080 | Via Caddy: `flow.yourdomain.com` |
-| Mattermost | 8065 | Via Caddy: `chat.yourdomain.com` |
 | changedetection.io | 5000 | Via Caddy: `monitor.yourdomain.com` |
 | RSSHub | 1200 | Via Caddy: `rss.yourdomain.com` |
-| Folo | 2233 | Via Caddy: `reader.yourdomain.com` |
 | ntfy | 2586 | Via Caddy: `ntfy.yourdomain.com` |
-| Plausible | 8000 | Via Caddy: `analytics.yourdomain.com` |
+| Umami | 3000 | Via Caddy: `analytics.yourdomain.com` |
 | PostgreSQL | 5432 | Internal only |
 | Redis | 6379 | Internal only |
-| ClickHouse | 8123 | Internal only |
-| Temporal | 7233 | Internal only |
 
 **Access modes:**
 
@@ -430,20 +396,14 @@ All services communicate over an internal container network (`werd-net`). Only t
 
 ### Storage & Volumes
 
-Persistent data is stored in named volumes mounted under `./data/` on the host:
+Persistent data is stored in named volumes:
 
 ```
 werd/
   data/
-    postgres/        # All PostgreSQL databases
+    postgres/        # All PostgreSQL databases (werd + umami)
     redis/           # Redis persistence (AOF)
-    clickhouse/      # ClickHouse event data (Plausible)
-    temporal/        # Temporal workflow state
-    mattermost/      # Chat history, file uploads
-    postiz/          # Scheduled posts, media uploads
-    activepieces/    # Workflow definitions, execution state
     changedetect/    # Watch configurations, page snapshots
-    plausible/       # Analytics configuration
     ntfy/            # Notification cache
     caddy/           # TLS certificates, Caddy config
     werd/            # Werd API local state (uploaded assets, etc.)
@@ -470,22 +430,13 @@ FRP_TOKEN=<generated>
 POSTGRES_PASSWORD=<generated>
 
 # ── Per-service database passwords ──
-# Each service gets its own PostgreSQL user restricted to its own database.
-POSTIZ_DB_PASSWORD=<generated>
-ACTIVEPIECES_DB_PASSWORD=<generated>
-MATTERMOST_DB_PASSWORD=<generated>
-PLAUSIBLE_DB_PASSWORD=<generated>
-TEMPORAL_DB_PASSWORD=<generated>
+UMAMI_DB_PASSWORD=<generated>
 
 # ── Redis ──
 REDIS_PASSWORD=<generated>
 
 # ── Service secrets ──
 WERD_JWT_SECRET=<generated>
-POSTIZ_JWT_SECRET=<generated>
-ACTIVEPIECES_ENCRYPTION_KEY=<generated>
-MATTERMOST_SECRET=<generated>
-PLAUSIBLE_SECRET=<generated>
 
 # ── Platform API keys (configure per project via Dashboard) ──
 # Instance-wide OAuth app credentials (shared across projects):
@@ -529,7 +480,7 @@ werd/
 │   │   │   │   ├── service/           #     Business logic
 │   │   │   │   ├── storage/           #     sqlc-generated PostgreSQL queries
 │   │   │   │   ├── webhook/           #     Webhook ingestion handlers
-│   │   │   │   └── integration/       #     API clients (Mattermost, Postiz, etc.)
+│   │   │   │   └── integration/       #     Social platform API clients (X, LinkedIn, etc.)
 │   │   │   ├── migrations/            #   goose SQL migration files
 │   │   │   ├── queries/               #   sqlc .sql query files
 │   │   │   ├── sqlc.yaml              #   sqlc codegen config
@@ -624,7 +575,7 @@ werd/
 ### Prerequisites
 
 - **Podman** 4.0+ with `podman-compose` 1.0+, **or** Docker with Docker Compose v2
-- A Linux server (4 vCPU, 8 GB RAM, 50 GB SSD minimum — 16 GB RAM recommended for comfort)
+- A Linux server (2 vCPU, 2-4 GB RAM, 30 GB SSD minimum — 8 GB RAM recommended for comfort)
 - A domain name pointed at your server (for automatic TLS; not required for local-only mode)
 
 ### Quick Start (Podman — Single Box)
@@ -722,25 +673,19 @@ podman-compose -f src/deploy/compose/docker-compose.yml --profile residential up
 ```yaml
 services:
   # ── Core (Werd) ──
-  werd-api:          # Go API server
+  werd-api:          # Go API server (cross-posting, routing, scheduling built-in)
   werd-dashboard:    # React SPA (served by Caddy or werd-api)
 
   # ── Infrastructure ──
   caddy:             # Reverse proxy & auto-TLS
-  postgres:          # Shared PostgreSQL (werd, postiz, activepieces, mattermost, plausible, temporal DBs)
-  redis:             # Shared Redis (Postiz, Activepieces, RSSHub, Werd sessions)
-  clickhouse:        # Plausible event store
-  # temporal:        # Workflow engine (Postiz dependency) — added with Postiz in Phase 3
+  postgres:          # Shared PostgreSQL (werd + umami DBs)
+  redis:             # Shared Redis (Werd sessions, RSSHub cache)
 
-  # ── Third-party Services ──
-  postiz:            # Cross-posting & scheduling
-  activepieces:      # Workflow automation
-  mattermost:        # Team chat & notifications
-  changedetect:      # Web page monitoring
-  rsshub:            # RSS feed generation
-  folo:              # RSS reader
-  ntfy:              # Push notifications
-  plausible:         # Web analytics
+  # ── Lightweight Services ──
+  ntfy:              # Push notifications (~20 MB)
+  changedetect:      # Web page monitoring (~100 MB)
+  rsshub:            # RSS feed generation (~80 MB)
+  umami:             # Web analytics (~240 MB)
 
   # ── Custom Monitors ──
   reddit-monitor:    # Custom Go Reddit monitor
@@ -756,12 +701,10 @@ networks:
 volumes:
   postgres-data:
   redis-data:
-  clickhouse-data:
   caddy-data:
   caddy-config:
-  # mattermost-data:       # Uncomment as services are enabled
-  # changedetect-data:
   # ntfy-data:
+  # changedetect-data:
 ```
 
 ## Implementation Milestones
@@ -775,66 +718,59 @@ volumes:
 | 1.4 | Caddy reverse proxy | Done | Caddyfile with subdomain routing, auto-TLS, security headers, CORS, WebSocket proxy, local mode variant | 1.1 |
 | 1.5 | Container networking | Not started | `werd-net` bridge network, DNS resolution between services, rootless Podman config | 1.1 |
 | 1.6 | Health checks & restart policies | Not started | Liveness/readiness probes for all services, `restart: unless-stopped`, dependency ordering (`depends_on` with health conditions) | 1.2–1.5 |
-| 1.7 | Secret generation script | Done | `tools/generate-secrets.sh` — generates all passwords, JWT secrets, encryption keys, writes to `.env` | 1.1 |
-| 1.8 | ClickHouse + Temporal | Not started | ClickHouse for Plausible events, Temporal for Postiz workflows (both with PostgreSQL backends) | 1.2 |
+| 1.7 | Secret generation script | Done | `tools/generate-secrets.sh` — generates all passwords, JWT secrets, writes to `.env` | 1.1 |
 | | | | | |
-| **2** | **Werd API Server (Go Backend)** | | **Core backend — auth, multi-project, orchestration** | |
+| **2** | **Werd API Server (Go Backend)** | | **Core backend — auth, multi-project, cross-posting, routing** | |
 | 2.1 | Go project scaffolding | Done | Go module, chi router, pgx connection pool, sqlc config, Dockerfile (multi-stage → distroless), compose service | 1.1 |
 | 2.2 | Database migrations | Not started | goose migration files for Werd core schema (projects, users, project_members, service_instances, alerts, etc.) | 2.1, 1.2 |
 | 2.3 | Authentication system | Not started | Local user accounts, bcrypt password hashing, JWT session tokens, middleware for route protection | 2.2 |
 | 2.4 | Multi-project CRUD | Not started | Create/read/update/delete projects, member management, role-based access control (owner/admin/member/viewer) | 2.3 |
-| 2.5 | Service provisioning engine | Not started | On project create: provision Postiz org, Mattermost team + channels, ntfy topic, Plausible site. On delete: deprovision. | 2.4, 3.1–3.5 |
+| 2.5 | Service provisioning engine | Not started | On project create: provision ntfy topic, changedetection watches, Umami site. On delete: deprovision. | 2.4, 3.x |
 | 2.6 | Webhook ingestion | Not started | HTTP endpoints to receive alerts from monitors, tag with project, deduplicate (UNIQUE constraint on source_type + source_id), persist | 2.4 |
-| 2.7 | Notification routing engine | Not started | Evaluate per-project notification rules against incoming alerts, fan out to Mattermost channels / ntfy topics | 2.6 |
-| 2.8 | Background sync jobs | Not started | Goroutine-based scheduler: poll Postiz for post status, sync Mattermost unread counts, sync Plausible stats | 2.5 |
-| 2.9 | WebSocket real-time push | Not started | WebSocket endpoint for live alert feed — push new alerts to connected dashboard clients via LISTEN/NOTIFY | 2.6 |
-| 2.10 | OpenAPI spec generation | Not started | swag annotations on all endpoints, auto-generated OpenAPI spec for frontend type generation | 2.4–2.9 |
+| 2.7 | Notification routing engine | Not started | Evaluate per-project notification rules against incoming alerts, fan out to ntfy topics / dashboard / webhooks / LLM drafting | 2.6 |
+| 2.8 | Social platform integration | Not started | Per-platform posting adapters (X, LinkedIn, Bluesky, Reddit, Mastodon), OAuth token management, encrypted credential storage | 2.4 |
+| 2.9 | Post scheduling | Not started | river persistent job queue for scheduled posts, status tracking, retry logic | 2.8 |
+| 2.10 | Background sync jobs | Not started | Poll sub-services for state changes, sync engagement metrics from social platforms | 2.5 |
+| 2.11 | WebSocket real-time push | Not started | WebSocket endpoint for live alert feed — push new alerts to connected dashboard clients via LISTEN/NOTIFY | 2.6 |
+| 2.12 | OpenAPI spec generation | Not started | swag annotations on all endpoints, auto-generated OpenAPI spec for frontend type generation | 2.4–2.11 |
 | | | | | |
-| **3** | **Third-Party Service Deployment** | | **Get all sub-services running and accessible** | |
-| 3.1 | Mattermost | Not started | Deploy with PostgreSQL backend, configure default admin, verify API access for bot operations | 1.2, 1.4 |
-| 3.2 | Activepieces | Not started | Deploy with PostgreSQL + Redis, configure webhook endpoints, verify flow creation API | 1.2, 1.3, 1.4 |
-| 3.3 | Postiz + Temporal | Not started | Deploy Postiz with PostgreSQL + Redis + Temporal, verify org creation API, test OAuth flows via Caddy | 1.2, 1.3, 1.4, 1.8 |
-| 3.4 | ntfy | Not started | Deploy with SQLite cache, configure ACL for per-project topics, test push notifications | 1.4 |
-| 3.5 | changedetection.io | Not started | Deploy, configure Caddy route, verify webhook output on page change | 1.4 |
-| 3.6 | RSSHub | Not started | Deploy with Redis cache, verify feed generation for target platforms | 1.3, 1.4 |
-| 3.7 | Folo | Not started | Deploy, connect to RSSHub instance | 1.4, 3.6 |
-| 3.8 | Plausible CE + ClickHouse | Not started | Deploy with PostgreSQL + ClickHouse, configure site creation API, verify tracking snippet | 1.2, 1.4, 1.8 |
+| **3** | **Lightweight Service Deployment** | | **Get sub-services running and accessible** | |
+| 3.1 | ntfy | Not started | Deploy with SQLite cache, configure ACL for per-project topics, test push notifications | 1.4 |
+| 3.2 | changedetection.io | Not started | Deploy, configure Caddy route, verify webhook output on page change | 1.4 |
+| 3.3 | RSSHub | Not started | Deploy with Redis cache, verify feed generation for target platforms | 1.3, 1.4 |
+| 3.4 | Umami | Not started | Deploy with PostgreSQL backend, configure site creation API, verify tracking | 1.2, 1.4 |
 | | | | | |
 | **4** | **Werd Dashboard (React Frontend)** | | **SPA for project management and unified control** | |
 | 4.1 | React project scaffolding | Done | Vite + React 19 + TypeScript, Tailwind CSS, shadcn/ui, React Router, TanStack Query, Dockerfile | 1.1 |
-| 4.2 | API type generation pipeline | Not started | openapi-typescript consuming Werd API's OpenAPI spec, automated in build | 2.10, 4.1 |
+| 4.2 | API type generation pipeline | Not started | openapi-typescript consuming Werd API's OpenAPI spec, automated in build | 2.12, 4.1 |
 | 4.3 | Auth flow | Not started | Login/logout, JWT token management, protected routes, user context | 2.3, 4.1 |
 | 4.4 | Project switcher + overview | Not started | Project list, create/switch projects, per-project dashboard with service health and recent alerts | 2.4, 4.3 |
-| 4.5 | Alert feed view | Not started | Unified alert list with filtering (source, severity, status, keyword), search, triage actions, WebSocket live updates | 2.6, 2.9, 4.4 |
+| 4.5 | Alert feed view | Not started | Unified alert list with filtering (source, severity, status, keyword), search, triage actions, WebSocket live updates | 2.6, 2.11, 4.4 |
 | 4.6 | Monitoring configuration | Not started | Manage keywords, subreddits, watched URLs, RSS feeds per project — CRUD forms writing to Werd API | 2.4, 4.4 |
-| 4.7 | Platform connections | Not started | Connect/disconnect social accounts per project via Postiz OAuth flow, status display | 2.5, 4.4 |
-| 4.8 | Publishing interface | Not started | Create/schedule/manage posts across platforms, preview, platform-specific formatting (wraps Postiz API) | 2.5, 4.7 |
-| 4.9 | Notification rules | Not started | Configure routing rules per project: source type × severity → destination (Mattermost channel / ntfy topic) | 2.7, 4.4 |
-| 4.10 | Analytics dashboard | Not started | Embedded Plausible stats (iframe or API), cross-platform engagement metrics per project | 2.8, 4.4 |
-| 4.11 | Workflow viewer | Not started | View/trigger Activepieces flows, execution logs, per-project scoping | 2.5, 4.4 |
-| 4.12 | Settings & user management | Not started | Invite users to projects, manage roles, project settings, service configuration | 2.4, 4.3 |
+| 4.7 | Platform connections | Not started | Connect/disconnect social accounts per project via OAuth flows, status display | 2.8, 4.4 |
+| 4.8 | Publishing interface | Not started | Create/schedule/manage posts across platforms, preview, platform-specific formatting | 2.8, 2.9, 4.7 |
+| 4.9 | Notification rules | Not started | Configure routing rules per project: source type × severity → destination (ntfy topic / webhook) | 2.7, 4.4 |
+| 4.10 | Analytics dashboard | Not started | Embedded Umami stats, cross-platform engagement metrics per project | 2.10, 3.4, 4.4 |
+| 4.11 | Settings & user management | Not started | Invite users to projects, manage roles, project settings, service configuration | 2.4, 4.3 |
 | | | | | |
 | **5** | **Monitoring Pipeline** | | **Custom bots for keyword monitoring across sources** | |
-| 5.1 | Reddit monitoring bot | Not started | Go service using Reddit API. Streams target subreddits per project, keyword matching, webhook to Werd API. Configurable via Werd API. | 2.6 |
+| 5.1 | Reddit monitoring bot | Not started | Go service using Reddit API. Streams target subreddits per project, keyword matching, webhook to Werd API. | 2.6 |
 | 5.2 | Hacker News poller | Not started | Go service polling HN API (stories, comments, Ask HN). Per-project keyword matching, webhook to Werd API. | 2.6 |
-| 5.3 | changedetection.io integration | Not started | Werd API provisions/manages watches per project via changedetection.io API. Webhook alerts routed to Werd API. | 2.5, 3.5 |
-| 5.4 | RSSHub feed configuration | Not started | Werd API generates RSSHub URLs per project keyword sets. Feeds consumed by changedetection.io or Folo. | 3.6 |
+| 5.3 | changedetection.io integration | Not started | Werd API provisions/manages watches per project via changedetection.io API. Webhook alerts routed to Werd API. | 2.5, 3.2 |
+| 5.4 | RSSHub feed configuration | Not started | Werd API generates RSSHub URLs per project keyword sets. Feeds consumed by changedetection.io. | 3.3 |
 | 5.5 | GitHub webhook receiver | Not started | Werd API endpoint receives GitHub webhooks (stars, issues, PRs, discussions), routes per project by repo mapping. | 2.6 |
 | | | | | |
-| **6** | **Notification & Routing** | | **Wire monitoring outputs to all notification destinations** | |
-| 6.1 | Mattermost provisioning | Not started | Werd API creates team + channels per project, configures bot user, incoming webhooks | 2.5, 3.1 |
-| 6.2 | Mattermost alert posting | Not started | Route alerts to correct project team → concern channel. Format alert as rich Mattermost post with context/links. | 2.7, 6.1 |
-| 6.3 | ntfy alert rules | Not started | High-priority alerts trigger ntfy push to per-project topics. Configurable priority levels via notification_rules. | 2.7, 3.4 |
-| 6.4 | Activepieces routing flows | Not started | Template flows for common routing patterns. Werd API triggers flows via webhook for complex multi-step processing. | 2.5, 3.2 |
-| 6.5 | LLM response drafting | Not started | On relevant mention: Werd API (or Activepieces flow) calls LLM API → generates draft → posts to Mattermost for human review. | 6.2 |
-| 6.6 | Alert deduplication | Not started | UNIQUE constraint on (project_id, source_type, source_id). Cross-monitor dedup for overlapping sources (e.g., same Reddit post from Reddit monitor + RSS). | 2.6 |
+| **6** | **Notification & Routing** | | **Wire monitoring outputs to notification destinations** | |
+| 6.1 | ntfy alert rules | Not started | High-priority alerts trigger ntfy push to per-project topics. Configurable priority levels via notification_rules. | 2.7, 3.1 |
+| 6.2 | LLM response drafting | Not started | On relevant mention: Werd API calls LLM API → generates draft → surfaces in dashboard for human review. | 2.7 |
+| 6.3 | Alert deduplication | Not started | UNIQUE constraint on (project_id, source_type, source_id). Cross-monitor dedup for overlapping sources. | 2.6 |
+| 6.4 | External webhook destinations | Not started | Configure arbitrary webhook URLs as notification destinations (Slack, Discord, etc. via incoming webhooks). | 2.7 |
 | | | | | |
 | **7** | **Publishing Pipeline** | | **Cross-posting, scheduling, and syndication** | |
-| 7.1 | Postiz org provisioning | Not started | Werd API creates Postiz organization per project, manages membership | 2.5, 3.3 |
-| 7.2 | Platform OAuth connections | Not started | Dashboard triggers Postiz OAuth flow per platform per project. Werd API tracks connection status. | 4.7, 7.1 |
-| 7.3 | Post creation & scheduling | Not started | Dashboard create/schedule → Werd API → Postiz API. Per-project scoping. Status sync back to Werd DB. | 4.8, 7.2 |
-| 7.4 | Blog syndication | Not started | cross-post CLI integration for Dev.to and Hashnode with canonical URL preservation | 7.2 |
-| 7.5 | Plausible tracking integration | Not started | Auto-generate UTM parameters for published links. Per-project Plausible site for referral tracking. | 2.5, 3.8 |
+| 7.1 | Platform OAuth connections | Not started | Dashboard OAuth flow per platform per project. Werd API manages token storage and refresh. | 2.8, 4.7 |
+| 7.2 | Post creation & scheduling | Not started | Dashboard create/schedule → Werd API → platform APIs. Per-project scoping. river job queue for scheduling. | 2.9, 4.8, 7.1 |
+| 7.3 | Blog syndication | Not started | cross-post CLI integration for Dev.to and Hashnode with canonical URL preservation | 7.1 |
+| 7.4 | Umami tracking integration | Not started | Auto-generate UTM parameters for published links. Per-project Umami site for referral tracking. | 2.5, 3.4 |
 | | | | | |
 | **8** | **Network Access & Tunnel** | | **Residential and flexible network support** | |
 | 8.1 | Cloud access mode | Not started | Default Caddyfile with direct Let's Encrypt HTTP-01 challenge. Standard DNS setup documentation. | 1.4 |
@@ -844,28 +780,28 @@ volumes:
 | 8.5 | DNS-01 TLS for NAT/k8s | Not started | Caddy DNS-01 challenge plugin (Cloudflare, Route53, etc.) for environments where HTTP-01 is not possible. | 1.4 |
 | | | | | |
 | **9** | **Kubernetes Deployment** | | **Helm charts and k8s manifests for distributed scaling** | |
-| 9.1 | Kompose baseline generation | Not started | Generate initial k8s manifests from `docker-compose.yml` via Kompose | 1.1–1.8 |
+| 9.1 | Kompose baseline generation | Not started | Generate initial k8s manifests from `docker-compose.yml` via Kompose | 1.x |
 | 9.2 | Manifest refinement | Not started | Add resource limits, probes, Secrets, ConfigMaps, Ingress rules to generated manifests | 9.1 |
 | 9.3 | Helm chart | Not started | Package all manifests into a Helm chart with `values.yaml` for configuration | 9.2 |
-| 9.4 | Database operators | Not started | CloudNativePG for PostgreSQL, Redis operator, Altinity for ClickHouse — replacing raw StatefulSets | 9.2 |
+| 9.4 | Database operators | Not started | CloudNativePG for PostgreSQL, Redis operator — replacing raw StatefulSets | 9.2 |
 | 9.5 | k3s single-node testing | Not started | Documented k3s deployment with optimized settings (`--disable traefik`, GOMEMLIMIT, SQLite backend) | 9.3 |
 | 9.6 | Multi-node scaling guide | Not started | Documentation for scaling individual services (HPA config, node affinity, PVC across nodes) | 9.5 |
 | | | | | |
 | **10** | **Hardening & Documentation** | | **Production readiness, security, operations** | |
 | 10.1 | Backup & restore | Not started | `scripts/backup.sh` — pg_dump all databases, snapshot volumes. `scripts/restore.sh` for recovery. Documented schedule. | 1.2 |
 | 10.2 | Security hardening | Not started | Rate limiting (Caddy), CORS policies, CSP headers, non-root container users, encrypted credentials (pgcrypto or app-level AES), secret rotation script | 1.4, 2.3 |
-| 10.3 | Logging & observability | Not started | Centralized log aggregation (Loki + Promtail or simple file-based). Service-level error alerting via ntfy. | 1.6, 3.4 |
+| 10.3 | Logging & observability | Not started | Centralized log aggregation (Loki + Promtail or simple file-based). Service-level error alerting via ntfy. | 1.6, 3.1 |
 | 10.4 | Setup documentation | Not started | Step-by-step deployment guide for each access mode. Configuration reference. Troubleshooting FAQ. | All above |
 | 10.5 | Update/migration tooling | Not started | `scripts/update.sh` — pull new images, run goose migrations, restart services with rollback. Compose and k8s variants. | 10.1 |
-| 10.6 | CI/CD pipeline | Not started | GitHub Actions: build Werd API + Dashboard images, run tests, push to container registry, Helm chart release | 2.10, 4.2 |
+| 10.6 | CI/CD pipeline | Not started | GitHub Actions: build Werd API + Dashboard images, run tests, push to container registry, Helm chart release | 2.12, 4.2 |
 
 ### Priority Order
 
 **Critical path:** 1.x → 2.1–2.4 → 3.1–3.4 → 4.1–4.5 → 5.1–5.2 → 6.1–6.3
 
 1. **Phase 1 (Core Infra)** — compose file, databases, proxy, networking
-2. **Phase 2 (Werd API)** — Go backend with auth, multi-project, webhook ingestion (the glue that holds everything together)
-3. **Phase 3 (Third-Party Services)** — get all sub-services running and API-accessible
+2. **Phase 2 (Werd API)** — Go backend with auth, multi-project, cross-posting, webhook ingestion, notification routing
+3. **Phase 3 (Lightweight Services)** — get sub-services running and API-accessible (ntfy, changedetection, RSSHub, Umami)
 4. **Phase 4 (Dashboard)** — React SPA providing the unified management UI (can be developed in parallel with Phase 3)
 5. **Phase 5 + 6 (Monitoring + Routing)** — the core value proposition: monitor → alert → notify
 6. **Phase 7 (Publishing)** — cross-posting and content distribution
@@ -875,7 +811,7 @@ volumes:
 
 ## Status
 
-Phase 1 in progress — project scaffolding complete (monorepo structure, compose skeleton, Dockerfiles, CI pipeline, Makefiles). Architecture defined, component selection complete, multi-project data model designed, technology decisions made (Go backend, React + TypeScript frontend, PostgreSQL core, Podman-first with Kubernetes path). Next: bring up PostgreSQL + Redis + Caddy (tasks 1.2–1.5).
+Phase 1 in progress — project scaffolding complete (monorepo structure, compose skeleton, Dockerfiles, CI pipeline, Makefiles). PostgreSQL, Redis, and Caddy deployed. Architecture defined, component selection complete, multi-project data model designed. Stack simplified (2026-03-13): heavy dependencies removed in favor of built-in Go modules and lightweight services. Next: container networking and health checks (tasks 1.5–1.6).
 
 ## License
 

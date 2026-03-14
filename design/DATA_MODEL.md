@@ -6,12 +6,8 @@ See [README.md](../README.md) for the full conceptual schema.
 
 | Database | Owner | Purpose |
 |---|---|---|
-| `werd` | Werd API Server | Core project/user/alert/config data |
-| `postiz` | Postiz | Organizations, integrations, scheduled posts |
-| `activepieces` | Activepieces | Flows, connections, executions |
-| `mattermost` | Mattermost | Teams, channels, messages, users |
-| `plausible` | Plausible | Sites, goals, configuration |
-| `temporal` | Temporal | Workflow engine state (Postiz dependency) |
+| `werd` | Werd API Server | Core project/user/alert/config/post data |
+| `umami` | Umami | Privacy-friendly web analytics |
 
 ## Multi-Project Isolation
 
@@ -19,12 +15,10 @@ The `werd` database is the source of truth. Every table (except `users`) is scop
 
 | Sub-Service | Isolation Mechanism | Tracked In |
 |---|---|---|
-| Postiz | Organization per project | `service_instances` |
-| Mattermost | Team + channels per project | `service_instances` |
 | ntfy | Topic prefix per project | `service_instances` |
-| Plausible | Site per project | `service_instances` |
 | changedetection.io | Watch tags per project | `service_instances` |
-| Activepieces | Naming convention (CE) | `service_instances` |
+| Umami | Site per project | `service_instances` |
+| RSSHub | Feed URLs parameterized per project | `monitor_sources` |
 
 ## Core Tables (werd database)
 
@@ -38,6 +32,7 @@ Key tables in the `werd` database:
 - **keywords** — Per-project keyword sets for matching
 - **alerts** — Incoming alerts from all monitoring sources, tagged by project
 - **notification_rules** — Per-project routing rules (source type x severity -> destination)
-- **published_posts** — Cross-platform post tracking (wraps Postiz data)
+- **platform_connections** — Per-project OAuth credentials for social platforms (encrypted at rest)
+- **published_posts** — Cross-platform post tracking with scheduling support
 
 All tables except `users` include a `project_id` foreign key for tenant isolation.

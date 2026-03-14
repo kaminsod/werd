@@ -13,4 +13,3 @@ Foundation: compose file, networking, databases, reverse proxy.
 | 1.5 | Container networking | Not started | werd-net bridge, DNS resolution, rootless Podman config | 1.1 |
 | 1.6 | Health checks & restart policies | Not started | Probes for all services, depends_on with conditions | 1.2–1.5 |
 | 1.7 | Secret generation script | Done | tools/generate-secrets.sh | 1.1 |
-| 1.8 | ClickHouse + Temporal | Not started | ClickHouse for Plausible, Temporal for Postiz | 1.2 |

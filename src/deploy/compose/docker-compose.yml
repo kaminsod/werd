@@ -53,11 +53,7 @@ services:
       POSTGRES_USER: werd
       POSTGRES_DB: werd
       # Passed to init-db.sh for per-service user creation:
-      POSTIZ_DB_PASSWORD: ${POSTIZ_DB_PASSWORD}
-      ACTIVEPIECES_DB_PASSWORD: ${ACTIVEPIECES_DB_PASSWORD}
-      MATTERMOST_DB_PASSWORD: ${MATTERMOST_DB_PASSWORD}
-      PLAUSIBLE_DB_PASSWORD: ${PLAUSIBLE_DB_PASSWORD}
-      TEMPORAL_DB_PASSWORD: ${TEMPORAL_DB_PASSWORD}
+      UMAMI_DB_PASSWORD: ${UMAMI_DB_PASSWORD}
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
@@ -89,19 +85,6 @@ services:
       timeout: 3s
       retries: 5
 
-  clickhouse:
-    image: clickhouse/clickhouse-server:24-alpine
-    restart: unless-stopped
-    volumes:
-      - clickhouse-data:/var/lib/clickhouse
-    networks:
-      - werd-net
-    healthcheck:
-      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
@@ -130,58 +113,16 @@ services:
       timeout: 5s
       retries: 3
 
-  # ── Third-Party Services ──
+  # ── Lightweight Services ──
 
-  # mattermost:
-  #   image: mattermost/mattermost-team-edition:latest
+  # ntfy:
+  #   image: binwiederhier/ntfy:latest
   #   restart: unless-stopped
-  #   environment:
-  #     MM_SQLSETTINGS_DRIVERNAME: postgres
-  #     MM_SQLSETTINGS_DATASOURCE: postgres://mattermost:${MATTERMOST_DB_PASSWORD}@postgres:5432/mattermost?sslmode=disable
+  #   command: serve
   #   volumes:
-  #     - mattermost-data:/mattermost/data
+  #     - ntfy-data:/var/lib/ntfy
   #   networks:
   #     - werd-net
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-
-  # activepieces:
-  #   image: activepieces/activepieces:latest
-  #   restart: unless-stopped
-  #   environment:
-  #     AP_POSTGRES_HOST: postgres
-  #     AP_POSTGRES_PORT: 5432
-  #     AP_POSTGRES_USERNAME: activepieces
-  #     AP_POSTGRES_PASSWORD: ${ACTIVEPIECES_DB_PASSWORD}
-  #     AP_POSTGRES_DATABASE: activepieces
-  #     AP_REDIS_HOST: redis
-  #     AP_REDIS_PORT: 6379
-  #     AP_REDIS_PASSWORD: ${REDIS_PASSWORD}
-  #     AP_REDIS_DATABASE: 3
-  #     AP_ENCRYPTION_KEY: ${ACTIVEPIECES_ENCRYPTION_KEY}
-  #   networks:
-  #     - werd-net
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #     redis:
-  #       condition: service_healthy
-
-  # postiz:
-  #   image: ghcr.io/gitroomhq/postiz-app:latest
-  #   restart: unless-stopped
-  #   environment:
-  #     DATABASE_URL: postgres://postiz:${POSTIZ_DB_PASSWORD}@postgres:5432/postiz?sslmode=disable
-  #     REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/1
-  #     JWT_SECRET: ${POSTIZ_JWT_SECRET}
-  #   networks:
-  #     - werd-net
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #     redis:
-  #       condition: service_healthy
 
   # changedetect:
   #   image: ghcr.io/dgtlmoon/changedetection.io:latest
@@ -203,29 +144,15 @@ services:
   #     redis:
   #       condition: service_healthy
 
-  # ntfy:
-  #   image: binwiederhier/ntfy:latest
-  #   restart: unless-stopped
-  #   command: serve
-  #   volumes:
-  #     - ntfy-data:/var/lib/ntfy
-  #   networks:
-  #     - werd-net
-
-  # plausible:
-  #   image: ghcr.io/plausible/community-edition:latest
+  # umami:
+  #   image: ghcr.io/umami-software/umami:postgresql-latest
   #   restart: unless-stopped
   #   environment:
-  #     DATABASE_URL: postgres://plausible:${PLAUSIBLE_DB_PASSWORD}@postgres:5432/plausible?sslmode=disable
-  #     CLICKHOUSE_DATABASE_URL: http://clickhouse:8123/plausible_events
-  #     SECRET_KEY_BASE: ${PLAUSIBLE_SECRET}
-  #     BASE_URL: https://analytics.${WERD_DOMAIN}
+  #     DATABASE_URL: postgres://umami:${UMAMI_DB_PASSWORD}@postgres:5432/umami?sslmode=disable
   #   networks:
   #     - werd-net
   #   depends_on:
   #     postgres:
-  #       condition: service_healthy
-  #     clickhouse:
   #       condition: service_healthy
 
   # ── Custom Monitors ──
@@ -277,9 +204,7 @@ networks:
 volumes:
   postgres-data:
   redis-data:
-  clickhouse-data:
   caddy-data:
   caddy-config:
-  # mattermost-data:
-  # changedetect-data:
   # ntfy-data:
+  # changedetect-data:

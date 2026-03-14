@@ -1,12 +1,13 @@
 # Werd API Server
 
-Go backend for the Werd platform. Handles authentication, multi-project orchestration, webhook ingestion, notification routing, and service aggregation.
+Go backend for the Werd platform. Handles authentication, multi-project orchestration, cross-posting, post scheduling, webhook ingestion, and notification routing.
 
 ## Stack
 
 - **Router:** net/http (will migrate to chi)
 - **Database:** pgx v5 + sqlc (planned)
 - **Migrations:** goose (planned)
+- **Background jobs:** river (persistent job queue for scheduling)
 - **Config:** os.Getenv (will migrate to envconfig)
 
 ## Development
@@ -32,7 +33,7 @@ internal/
   service/          Business logic
   storage/          sqlc-generated PostgreSQL queries
   webhook/          Webhook ingestion handlers
-  integration/      API clients (Mattermost, Postiz, Activepieces, etc.)
+  integration/      Social platform API clients (X, LinkedIn, Bluesky, Reddit, Mastodon)
 migrations/         goose SQL migration files
 queries/            sqlc .sql query files
 ```

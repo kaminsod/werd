@@ -54,37 +54,8 @@ api.{$WERD_DOMAIN} {
 	reverse_proxy werd-api:8090
 }
 
-# ── Third-Party Services ──
+# ── Lightweight Services ──
 # Uncomment as services are activated.
-
-# chat.{$WERD_DOMAIN} {
-# 	import security_headers
-#
-# 	# Mattermost requires WebSocket for real-time messaging
-# 	@mattermost_ws {
-# 		path /api/v4/websocket
-# 	}
-# 	reverse_proxy @mattermost_ws mattermost:8065
-#
-# 	# Allow file uploads up to 50 MB
-# 	request_body {
-# 		max_size 50MB
-# 	}
-# 	reverse_proxy mattermost:8065
-# }
-
-# flow.{$WERD_DOMAIN} {
-# 	import security_headers
-# 	reverse_proxy activepieces:8080
-# }
-
-# postiz.{$WERD_DOMAIN} {
-# 	import security_headers
-# 	request_body {
-# 		max_size 25MB
-# 	}
-# 	reverse_proxy postiz:4200
-# }
 
 # monitor.{$WERD_DOMAIN} {
 # 	import security_headers
@@ -96,11 +67,6 @@ api.{$WERD_DOMAIN} {
 # 	reverse_proxy rsshub:1200
 # }
 
-# reader.{$WERD_DOMAIN} {
-# 	import security_headers
-# 	reverse_proxy folo:2233
-# }
-
 # ntfy.{$WERD_DOMAIN} {
 # 	import security_headers
 #
@@ -110,5 +76,5 @@ api.{$WERD_DOMAIN} {
 
 # analytics.{$WERD_DOMAIN} {
 # 	import security_headers
-# 	reverse_proxy plausible:8000
+# 	reverse_proxy umami:3000
 # }

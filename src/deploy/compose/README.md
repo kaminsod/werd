@@ -22,22 +22,18 @@ docker compose up -d
 
 ## Service Activation
 
-Third-party services are commented out by default. Uncomment them in `docker-compose.yml` as you work through the implementation phases.
+Lightweight services are commented out by default. Uncomment them in `docker-compose.yml` as you work through the implementation phases.
 
 ## PostgreSQL
 
-Shared PostgreSQL 17 instance hosting 6 databases. Each service gets a dedicated database user restricted to its own database.
+Shared PostgreSQL 17 instance hosting databases for Werd and sub-services. Each service gets a dedicated database user restricted to its own database.
 
 ### Databases and Users
 
 | Database | User | Purpose |
 |---|---|---|
 | `werd` | `werd` (superuser) | Core project/user/alert/config data. Also runs migrations. |
-| `postiz` | `postiz` | Cross-posting organizations, integrations, scheduled posts |
-| `activepieces` | `activepieces` | Workflow definitions, connections, executions |
-| `mattermost` | `mattermost` | Teams, channels, messages, users |
-| `plausible` | `plausible` | Analytics sites, goals, configuration |
-| `temporal` | `temporal` | Workflow engine state (Postiz dependency) |
+| `umami` | `umami` | Privacy-friendly web analytics |
 
 ### Initialization
 
@@ -89,11 +85,7 @@ psql -h localhost -U werd -d werd
 | Variable | Purpose | Default |
 |---|---|---|
 | `POSTGRES_PASSWORD` | Password for `werd` superuser | `changeme` |
-| `POSTIZ_DB_PASSWORD` | Password for `postiz` database user | `changeme` |
-| `ACTIVEPIECES_DB_PASSWORD` | Password for `activepieces` database user | `changeme` |
-| `MATTERMOST_DB_PASSWORD` | Password for `mattermost` database user | `changeme` |
-| `PLAUSIBLE_DB_PASSWORD` | Password for `plausible` database user | `changeme` |
-| `TEMPORAL_DB_PASSWORD` | Password for `temporal` database user | `changeme` |
+| `UMAMI_DB_PASSWORD` | Password for `umami` database user | `changeme` |
 | `POSTGRES_PORT` | Host port for dev access (commented out by default) | `5432` |
 
 All passwords should be generated via `tools/generate-secrets.sh` — never use the defaults in production.
@@ -107,11 +99,9 @@ Shared Redis 7 instance used for caching, sessions, and job queues. Services are
 | DB | Service | Usage |
 |---|---|---|
 | 0 | Werd API | Sessions, cache |
-| 1 | Postiz | BullMQ job queue, cache |
 | 2 | RSSHub | Route cache |
-| 3 | Activepieces | Flow queue, locks |
 
-All services share a single `REDIS_PASSWORD`. Redis ACLs don't support per-database access restrictions, so isolation is by convention (separate DB numbers). Each service's connection URL includes its assigned database number (e.g., `redis://:pass@redis:6379/1`).
+All services share a single `REDIS_PASSWORD`. Redis ACLs don't support per-database access restrictions, so isolation is by convention (separate DB numbers). Each service's connection URL includes its assigned database number (e.g., `redis://:pass@redis:6379/2`).
 
 ### Configuration Tuning
 
@@ -124,7 +114,7 @@ All services share a single `REDIS_PASSWORD`. Redis ACLs don't support per-datab
 | 8 GB | 512mb |
 | 16 GB | 1gb |
 
-The eviction policy is `allkeys-lru` — when memory is full, Redis evicts the least-recently-used keys. This is safe for cache/session workloads. If a service needs guaranteed persistence (e.g., BullMQ jobs), it should use short-lived keys or rely on its own retry logic.
+The eviction policy is `allkeys-lru` — when memory is full, Redis evicts the least-recently-used keys. This is safe for cache/session workloads.
 
 Edit `redis.conf` directly — changes take effect on container restart.
 

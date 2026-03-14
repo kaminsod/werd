@@ -12,7 +12,7 @@ Current status and implementation milestones. See [README.md](README.md) for the
 |---|---|---|
 | 1 | Core Infrastructure | In progress |
 | 2 | Werd API Server (Go Backend) | Not started |
-| 3 | Third-Party Service Deployment | Not started |
+| 3 | Lightweight Service Deployment | Not started |
 | 4 | Werd Dashboard (React Frontend) | Not started |
 | 5 | Monitoring Pipeline | Not started |
 | 6 | Notification & Routing | Not started |

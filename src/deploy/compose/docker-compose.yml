@@ -199,6 +199,7 @@ services:
 
 networks:
   werd-net:
+    name: werd-net
     driver: bridge
 
 volumes:

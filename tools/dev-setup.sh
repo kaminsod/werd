@@ -14,6 +14,13 @@ echo "Go:   $(go version)"
 echo "Node: $(node --version)"
 echo "npm:  $(npm --version)"
 
+# Container runtime check (non-fatal)
+echo ""
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+if [ -x "$SCRIPT_DIR/check-podman.sh" ]; then
+  "$SCRIPT_DIR/check-podman.sh" || echo "  (container runtime issues detected — see above)"
+fi
+
 # Go workspace sync
 echo ""
 echo "Syncing Go workspace..."

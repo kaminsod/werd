@@ -140,3 +140,66 @@ redis-cli -h localhost -a <REDIS_PASSWORD from .env>
 |---|---|---|
 | `REDIS_PASSWORD` | Shared password for all Redis connections | `changeme` |
 | `REDIS_PORT` | Host port for dev access (commented out by default) | `6379` |
+
+## Networking
+
+All services share a single bridge network called `werd-net`.
+
+### Network Topology
+
+```
+                          ┌─────────────┐
+                          │   Caddy      │ ← only service exposing host ports (80, 443)
+                          └──────┬───────┘
+                                 │ werd-net (bridge)
+        ┌──────────┬─────────────┼──────────────┬──────────┐
+        │          │             │              │          │
+   werd-api   werd-dashboard  postgres       redis    (other services)
+```
+
+- **Single flat network** — all services can reach each other by compose service name. Split frontend/backend networks are unnecessary for a single-user single-box deployment. PostgreSQL and Redis are already password-protected.
+- **Deterministic name** — the compose file sets `name: werd-net` explicitly, so the network is always called `werd-net` regardless of project directory name (without this, Podman/Docker would prefix it, e.g., `compose_werd-net`).
+- **Port exposure** — only Caddy binds to host ports (80/443). All other services communicate internally on `werd-net`. Uncomment port mappings in `docker-compose.yml` for direct host access during development.
+
+### DNS Resolution
+
+Services reference each other by their compose service name. For example, `werd-api` connects to PostgreSQL at `postgres:5432` and Redis at `redis:6379`. Docker/Podman compose provides this DNS resolution automatically on the bridge network.
+
+To verify DNS resolution is working:
+```bash
+make compose-check-dns
+```
+
+### Rootless Podman Setup
+
+Podman runs rootless by default, which means containers cannot bind to privileged ports (< 1024) without configuration. Since Caddy needs ports 80 and 443:
+
+```bash
+# Allow unprivileged binding to port 80+
+sudo sysctl -w net.ipv4.ip_unprivileged_port_start=80
+
+# Persist across reboots
+echo 'net.ipv4.ip_unprivileged_port_start=80' | sudo tee /etc/sysctl.d/podman-privileged-ports.conf
+```
+
+Run `tools/check-podman.sh` to verify your setup, or `tools/dev-setup.sh` which includes the check automatically.
+
+### Docker Compatibility
+
+If using `docker compose` with Podman as the backend, enable the Podman socket:
+
+```bash
+systemctl --user enable --now podman.socket
+export DOCKER_HOST=unix://$XDG_RUNTIME_DIR/podman/podman.sock
+docker compose up -d
+```
+
+### Troubleshooting
+
+| Problem | Diagnosis | Fix |
+|---|---|---|
+| Services can't reach each other | `make compose-check-dns` | Ensure all services are on `werd-net` |
+| Caddy can't bind port 80/443 | `sysctl net.ipv4.ip_unprivileged_port_start` | See "Rootless Podman Setup" above |
+| Network name has project prefix | `podman network ls` | Ensure `name: werd-net` is in compose file |
+| SELinux denies volume mounts (Fedora/RHEL) | `ausearch -m avc -ts recent` | Add `:Z` suffix to volume mounts |
+| `docker compose` can't connect to Podman | Check `$DOCKER_HOST` | Enable Podman socket (see above) |

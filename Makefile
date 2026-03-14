@@ -2,7 +2,7 @@
 .PHONY: build-api build-web build-monitors
 .PHONY: test-api test-web
 .PHONY: dev-api dev-web
-.PHONY: compose-up compose-down compose-ps compose-logs
+.PHONY: compose-up compose-down compose-ps compose-logs compose-check-dns
 .PHONY: generate-secrets
 
 help: ## Show this help
@@ -64,6 +64,14 @@ compose-ps: ## Show running services
 
 compose-logs: ## Tail logs from all services
 	$(COMPOSE_CMD) logs -f
+
+compose-check-dns: ## Verify DNS resolution between services on werd-net
+	@echo "Checking DNS resolution on werd-net..."
+	@for svc in postgres redis werd-api werd-dashboard caddy; do \
+	  $(COMPOSE_CMD) exec caddy nslookup $$svc >/dev/null 2>&1 \
+	    && printf "  %-20s OK\n" "$$svc" \
+	    || printf "  %-20s FAIL\n" "$$svc"; \
+	done
 
 # ── Scripts ──
 

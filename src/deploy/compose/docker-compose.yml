@@ -20,10 +20,11 @@ services:
     networks:
       - werd-net
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8090/healthz"]
+      test: ["CMD", "/usr/local/bin/healthcheck"]
       interval: 10s
       timeout: 5s
       retries: 3
+      start_period: 15s
 
   werd-dashboard:
     build:
@@ -39,6 +40,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
+      start_period: 10s
 
   # ── Infrastructure ──
 
@@ -67,6 +69,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+      start_period: 30s
 
   redis:
     image: redis:7-alpine
@@ -84,6 +87,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+      start_period: 10s
 
   caddy:
     image: caddy:2-alpine
@@ -108,10 +112,11 @@ services:
       werd-dashboard:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:2019/config/ 2>/dev/null"]
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:2019/config/"]
       interval: 10s
       timeout: 5s
       retries: 3
+      start_period: 10s
 
   # ── Lightweight Services ──
 
@@ -123,6 +128,12 @@ services:
   #     - ntfy-data:/var/lib/ntfy
   #   networks:
   #     - werd-net
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "wget -qO- http://localhost:2586/v1/health | grep -q healthy"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 3
+  #     start_period: 10s
 
   # changedetect:
   #   image: ghcr.io/dgtlmoon/changedetection.io:latest
@@ -131,6 +142,12 @@ services:
   #     - changedetect-data:/datastore
   #   networks:
   #     - werd-net
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "curl -sf http://localhost:5000/ > /dev/null"]
+  #     interval: 15s
+  #     timeout: 5s
+  #     retries: 3
+  #     start_period: 15s
 
   # rsshub:
   #   image: diygod/rsshub:latest
@@ -143,6 +160,12 @@ services:
   #   depends_on:
   #     redis:
   #       condition: service_healthy
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:1200/"]
+  #     interval: 15s
+  #     timeout: 5s
+  #     retries: 3
+  #     start_period: 15s
 
   # umami:
   #   image: ghcr.io/umami-software/umami:postgresql-latest
@@ -154,6 +177,12 @@ services:
   #   depends_on:
   #     postgres:
   #       condition: service_healthy
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3000/api/heartbeat"]
+  #     interval: 15s
+  #     timeout: 5s
+  #     retries: 3
+  #     start_period: 30s
 
   # ── Custom Monitors ──
 
@@ -171,6 +200,7 @@ services:
   #   depends_on:
   #     werd-api:
   #       condition: service_healthy
+  #   # TODO: add healthcheck when monitor gains HTTP endpoint (Phase 5)
 
   # hn-monitor:
   #   build:
@@ -184,6 +214,7 @@ services:
   #   depends_on:
   #     werd-api:
   #       condition: service_healthy
+  #   # TODO: add healthcheck when monitor gains HTTP endpoint (Phase 5)
 
   # ── Residential Tunnel (activate with: --profile residential) ──
 
@@ -196,6 +227,12 @@ services:
   #     - ./frpc.toml:/etc/frp/frpc.toml:ro
   #   networks:
   #     - werd-net
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pgrep frpc > /dev/null"]
+  #     interval: 15s
+  #     timeout: 5s
+  #     retries: 3
+  #     start_period: 10s
 
 networks:
   werd-net:

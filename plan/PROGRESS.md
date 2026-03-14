@@ -10,18 +10,20 @@
 - [x] 1.2 PostgreSQL deployment — per-service users/databases, tuned config, init-db.sh
 - [x] 1.3 Redis deployment — tuned config, per-service DB numbering, AOF persistence
 - [x] 1.4 Caddy reverse proxy — security headers, CORS, WebSocket, production + local Caddyfiles
+- [x] 1.5 Container networking — werd-net bridge, DNS diagnostics, rootless Podman checker
+- [x] 1.6 Health checks & restart policies — start_period, distroless healthcheck binary, probes for all services
 
 ### In Progress
-- [ ] 1.5 Container networking
+(none)
 
 ### Not Started
-- [ ] 1.6 Health checks & restart policies
+(none — Phase 1 complete)
 
 ## Phase Overview
 
 | Phase | Name | Status |
 |---|---|---|
-| 1 | Core Infrastructure | In progress |
+| 1 | Core Infrastructure | Done |
 | 2 | Werd API Server | Scaffolding done, awaiting Phase 1 |
 | 3 | Lightweight Services | Not started |
 | 4 | Werd Dashboard | Scaffolding done, awaiting Phase 2 |

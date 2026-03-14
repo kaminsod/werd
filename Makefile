@@ -2,7 +2,7 @@
 .PHONY: build-api build-web build-monitors
 .PHONY: test-api test-web
 .PHONY: dev-api dev-web
-.PHONY: compose-up compose-down compose-ps compose-logs compose-check-dns
+.PHONY: compose-up compose-down compose-ps compose-logs compose-check-dns compose-health
 .PHONY: generate-secrets
 
 help: ## Show this help
@@ -64,6 +64,9 @@ compose-ps: ## Show running services
 
 compose-logs: ## Tail logs from all services
 	$(COMPOSE_CMD) logs -f
+
+compose-health: ## Show health status of all services
+	@$(COMPOSE_CMD) ps
 
 compose-check-dns: ## Verify DNS resolution between services on werd-net
 	@echo "Checking DNS resolution on werd-net..."

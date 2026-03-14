@@ -141,6 +141,51 @@ redis-cli -h localhost -a <REDIS_PASSWORD from .env>
 | `REDIS_PASSWORD` | Shared password for all Redis connections | `changeme` |
 | `REDIS_PORT` | Host port for dev access (commented out by default) | `6379` |
 
+## Health Checks
+
+Every service has a health check configured. Services with dependencies use `depends_on` with `condition: service_healthy` to ensure proper startup ordering.
+
+### Startup Order
+
+```
+postgres, redis          (no dependencies — start first)
+       ↓
+werd-api                 (waits for postgres + redis healthy)
+werd-dashboard           (no dependencies)
+       ↓
+caddy                    (waits for werd-api + werd-dashboard healthy)
+```
+
+### Checking Health
+
+```bash
+# Quick overview of all service health:
+make compose-health
+
+# Detailed health log for a specific container:
+podman inspect <container-name> --format '{{json .State.Health}}'
+```
+
+### Health Check Summary
+
+| Service | Probe | Interval | Start Period |
+|---|---|---|---|
+| postgres | `pg_isready -U werd` | 5s | 30s |
+| redis | `redis-cli ping` | 5s | 10s |
+| werd-api | `/usr/local/bin/healthcheck` (Go binary, distroless-compatible) | 10s | 15s |
+| werd-dashboard | `wget --spider localhost:3000` | 10s | 10s |
+| caddy | `wget localhost:2019/config/` | 10s | 10s |
+
+### Restart Policy
+
+All services use `restart: unless-stopped`:
+- Containers restart automatically on crash or host reboot
+- Containers do NOT restart if you explicitly stop them (`podman-compose stop`)
+
+### Distroless Health Checks
+
+`werd-api` uses a `distroless/static` runtime image which has no shell or utilities. A dedicated Go `healthcheck` binary is built alongside the API binary and copied into the image. It hits `http://localhost:8090/healthz` and exits 0 (healthy) or 1 (unhealthy). The URL can be overridden via the `HEALTHCHECK_URL` environment variable for reuse in other distroless services.
+
 ## Networking
 
 All services share a single bridge network called `werd-net`.
@@ -203,3 +248,4 @@ docker compose up -d
 | Network name has project prefix | `podman network ls` | Ensure `name: werd-net` is in compose file |
 | SELinux denies volume mounts (Fedora/RHEL) | `ausearch -m avc -ts recent` | Add `:Z` suffix to volume mounts |
 | `docker compose` can't connect to Podman | Check `$DOCKER_HOST` | Enable Podman socket (see above) |
+| Service stuck "unhealthy" | `make compose-health`, then `podman inspect <container>` | Check health check command can run inside the container |

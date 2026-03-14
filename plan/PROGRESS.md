@@ -13,12 +13,14 @@
 - [x] 1.5 Container networking — werd-net bridge, DNS diagnostics, rootless Podman checker
 - [x] 1.6 Health checks & restart policies — start_period, distroless healthcheck binary, probes for all services
 - [x] 2.2 Database migrations — goose initial schema: 10 enums, 11 tables, updated_at trigger, 12 indexes
+- [x] 2.3 Authentication system — chi router, bcrypt, JWT, admin seeding, login/me/change-password
+- [x] 2.4 Multi-project CRUD — project + member CRUD, role-based access, RequireProjectMember middleware
 
 ### In Progress
 (none)
 
 ### Not Started
-- [ ] 2.3 Authentication system
+- [ ] 2.5 Service provisioning engine
 
 ## Phase Overview
 

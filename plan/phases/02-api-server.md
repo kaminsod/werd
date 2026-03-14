@@ -8,8 +8,8 @@ Core backend — auth, multi-project orchestration, webhook ingestion, cross-pos
 |---|---|---|---|---|
 | 2.1 | Go project scaffolding | Done | Go module, net/http server, sqlc config, Dockerfile, compose service | 1.1 |
 | 2.2 | Database migrations | Done | goose initial schema: 10 enums, 11 tables, updated_at trigger, 12 indexes | 2.1, 1.2 |
-| 2.3 | Authentication system | Not started | Local accounts, bcrypt, JWT sessions | 2.2 |
-| 2.4 | Multi-project CRUD | Not started | Projects, members, roles | 2.3 |
+| 2.3 | Authentication system | Done | chi router, bcrypt, JWT, admin seeding, login/me/change-password endpoints | 2.2 |
+| 2.4 | Multi-project CRUD | Done | Project + member CRUD, role-based access, RequireProjectMember middleware | 2.3 |
 | 2.5 | Service provisioning engine | Not started | Provision ntfy topics, changedetection watches, Umami sites per project | 2.4, 3.x |
 | 2.6 | Webhook ingestion | Not started | Receive, tag, deduplicate, persist alerts | 2.4 |
 | 2.7 | Notification routing engine | Not started | Evaluate rules, fan out to ntfy topics, dashboard, webhooks, LLM drafting | 2.6 |

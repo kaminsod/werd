@@ -11,7 +11,7 @@ Core backend — auth, multi-project orchestration, webhook ingestion, cross-pos
 | 2.3 | Authentication system | Done | chi router, bcrypt, JWT, admin seeding, login/me/change-password endpoints | 2.2 |
 | 2.4 | Multi-project CRUD | Done | Project + member CRUD, role-based access, RequireProjectMember middleware | 2.3 |
 | 2.5 | Service provisioning engine | Not started | Provision ntfy topics, changedetection watches, Umami sites per project | 2.4, 3.x |
-| 2.6 | Webhook ingestion | Not started | Receive, tag, deduplicate, persist alerts | 2.4 |
+| 2.6 | Webhook ingestion | Done | Upsert dedup, keyword matching, alert/keyword CRUD, internal API key auth | 2.4 |
 | 2.7 | Notification routing engine | Not started | Evaluate rules, fan out to ntfy topics, dashboard, webhooks, LLM drafting | 2.6 |
 | 2.8 | Social platform integration | Not started | Per-platform posting adapters (X, LinkedIn, Bluesky, Reddit, Mastodon), OAuth token management | 2.4 |
 | 2.9 | Post scheduling | Not started | river persistent job queue for scheduled posts, status tracking | 2.8 |

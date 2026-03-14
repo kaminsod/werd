@@ -9,7 +9,8 @@ type Config struct {
 	APIPort     string
 	DatabaseURL string
 	RedisURL    string
-	JWTSecret   string
+	JWTSecret      string
+	InternalAPIKey string
 
 	// Optional: seed an admin user on first startup.
 	AdminEmail    string
@@ -21,8 +22,9 @@ func Load() (*Config, error) {
 		APIPort:       envOr("WERD_API_PORT", "8090"),
 		DatabaseURL:   os.Getenv("DATABASE_URL"),
 		RedisURL:      os.Getenv("REDIS_URL"),
-		JWTSecret:     os.Getenv("WERD_JWT_SECRET"),
-		AdminEmail:    os.Getenv("WERD_ADMIN_EMAIL"),
+		JWTSecret:      os.Getenv("WERD_JWT_SECRET"),
+		InternalAPIKey: os.Getenv("WERD_INTERNAL_API_KEY"),
+		AdminEmail:     os.Getenv("WERD_ADMIN_EMAIL"),
 		AdminPassword: os.Getenv("WERD_ADMIN_PASSWORD"),
 	}
 
@@ -31,6 +33,9 @@ func Load() (*Config, error) {
 	}
 	if cfg.JWTSecret == "" {
 		return nil, fmt.Errorf("WERD_JWT_SECRET is required")
+	}
+	if cfg.InternalAPIKey == "" {
+		return nil, fmt.Errorf("WERD_INTERNAL_API_KEY is required")
 	}
 
 	return cfg, nil

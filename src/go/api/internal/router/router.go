@@ -16,7 +16,9 @@ func New(
 	authSvc *service.Auth,
 	authH *handler.Auth,
 	projectH *handler.ProjectHandler,
+	alertH *handler.AlertHandler,
 	queries *storage.Queries,
+	internalAPIKey string,
 ) http.Handler {
 	r := chi.NewRouter()
 
@@ -32,6 +34,12 @@ func New(
 		w.Write([]byte(`{"status":"ok"}`))
 	})
 	r.Post("/auth/login", authH.Login)
+
+	// Webhook ingestion (internal services, API key auth).
+	r.Group(func(r chi.Router) {
+		r.Use(middleware.RequireInternalAPIKey(internalAPIKey))
+		r.Post("/webhooks/ingest", alertH.IngestWebhook)
+	})
 
 	// Protected routes (require valid JWT).
 	r.Group(func(r chi.Router) {
@@ -57,6 +65,16 @@ func New(
 			r.Post("/members", projectH.AddMember)
 			r.Put("/members/{userID}", projectH.UpdateMemberRole)
 			r.Delete("/members/{userID}", projectH.RemoveMember)
+
+			// Alerts.
+			r.Get("/alerts", alertH.ListAlerts)
+			r.Get("/alerts/{alertID}", alertH.GetAlert)
+			r.Put("/alerts/{alertID}", alertH.UpdateAlertStatus)
+
+			// Keywords.
+			r.Get("/keywords", alertH.ListKeywords)
+			r.Post("/keywords", alertH.CreateKeyword)
+			r.Delete("/keywords/{kwID}", alertH.DeleteKeyword)
 		})
 	})
 

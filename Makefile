@@ -3,6 +3,7 @@
 .PHONY: test-api test-web
 .PHONY: dev-api dev-web
 .PHONY: compose-up compose-down compose-ps compose-logs compose-check-dns compose-health
+.PHONY: integration-test integration-test-keep
 .PHONY: generate-secrets
 
 help: ## Show this help
@@ -75,6 +76,14 @@ compose-check-dns: ## Verify DNS resolution between services on werd-net
 	    && printf "  %-20s OK\n" "$$svc" \
 	    || printf "  %-20s FAIL\n" "$$svc"; \
 	done
+
+# ── Integration Tests ──
+
+integration-test: ## Run Phase 1 integration tests (requires container runtime)
+	./tests/integration/run.sh
+
+integration-test-keep: ## Run integration tests, leave stack running for debugging
+	WERD_TEST_KEEP=1 ./tests/integration/run.sh
 
 # ── Scripts ──
 

@@ -555,6 +555,13 @@ werd/
 │
 ├── marketing/                         # Marketing materials
 │
+├── tests/                             # Integration & end-to-end tests
+│   └── integration/                   #   Phase 1 infrastructure tests (Bash)
+│       ├── run.sh                     #     Test harness (setup → run → teardown)
+│       ├── lib.sh                     #     Shared assertions and compose helpers
+│       ├── docker-compose.test.yml    #     Compose override for test environment
+│       └── suites/                    #     Test suites (01-08)
+│
 ├── Makefile                           # Top-level build orchestration
 ├── PLAN.md                            # High-level phase overview
 ├── README.md                          # This file
@@ -706,6 +713,35 @@ volumes:
   # ntfy-data:
   # changedetect-data:
 ```
+
+## Integration Tests
+
+End-to-end tests that spin up the full compose stack and validate that all Phase 1 infrastructure works correctly as a unit.
+
+```bash
+# Run the full suite (builds images, starts stack, runs tests, tears down):
+make integration-test
+
+# Same, but leave the stack running for debugging:
+make integration-test-keep
+```
+
+**Requirements:** Podman with podman-compose (or Docker with docker compose), curl, openssl. No domain or TLS setup needed — tests use `Caddyfile.local` with port-based routing on localhost.
+
+### What's tested (~44 assertions)
+
+| Suite | Coverage |
+|---|---|
+| Stack Lifecycle | All 5 services healthy, startup ordering, `werd-net` network name deterministic, internal ports not exposed |
+| PostgreSQL | Database/user creation by `init-db.sh`, cross-database isolation, `postgres.conf` tuning loaded |
+| Redis | AUTH enforcement, per-DB read/write and isolation, `maxmemory`, eviction policy, AOF enabled |
+| Werd API | `/healthz` through Caddy, JSON response body, direct port blocked |
+| Werd Dashboard | HTML serving, SPA `try_files` routing (deep paths return `index.html`), direct port blocked |
+| Caddy Proxy | Security headers, `Server` header removed, CORS origin/methods/headers, preflight, 10MB body limit |
+| DNS Resolution | All services resolvable by name from multiple containers |
+| Persistence | PostgreSQL data survives restart, Redis AOF data survives restart |
+
+See [`tests/integration/README.md`](tests/integration/README.md) for architecture details, per-test documentation, and debugging tips.
 
 ## Implementation Milestones
 

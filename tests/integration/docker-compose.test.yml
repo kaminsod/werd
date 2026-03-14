@@ -1,0 +1,27 @@
+# Compose override for integration tests.
+#
+# Swaps the production Caddyfile for Caddyfile.local (port-based, no TLS,
+# no domain required) and remaps host ports to 13080/13081 to avoid
+# conflicting with a running production stack or requiring privileged ports.
+#
+# Used by run.sh via:
+#   $COMPOSE_CMD -f docker-compose.yml -f docker-compose.test.yml ...
+#
+# The CADDYFILE_PATH env var is set by the test harness to the absolute path
+# of Caddyfile.local, avoiding compose-implementation-specific path resolution.
+
+services:
+  caddy:
+    ports:
+      - "13080:3080"
+      - "13081:3081"
+    volumes:
+      - ${CADDYFILE_PATH}:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3081/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

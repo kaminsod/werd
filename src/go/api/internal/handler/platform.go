@@ -90,7 +90,7 @@ func (h *PlatformHandler) ListConnections(w http.ResponseWriter, r *http.Request
 
 	conns, err := h.platformSvc.ListConnections(r.Context(), projectID)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, messageResponse{Message: "failed to list connections"})
+		writeError(w, http.StatusInternalServerError, "failed to list connections", err)
 		return
 	}
 
@@ -240,7 +240,7 @@ func (h *PlatformHandler) ListPosts(w http.ResponseWriter, r *http.Request) {
 
 	result, err := h.postSvc.List(r.Context(), projectID, statusFilter, int32(limit), int32(offset))
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, messageResponse{Message: "failed to list posts"})
+		writeError(w, http.StatusInternalServerError, "failed to list posts", err)
 		return
 	}
 
@@ -285,7 +285,7 @@ func (h *PlatformHandler) CreatePost(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, service.ErrUnsupportedPlatform):
 			writeJSON(w, http.StatusBadRequest, messageResponse{Message: err.Error()})
 		default:
-			writeJSON(w, http.StatusInternalServerError, messageResponse{Message: "failed to create post"})
+			writeError(w, http.StatusInternalServerError, "failed to create post", err)
 		}
 		return
 	}
@@ -339,7 +339,7 @@ func (h *PlatformHandler) UpdatePost(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, service.ErrUnsupportedPlatform):
 			writeJSON(w, http.StatusBadRequest, messageResponse{Message: err.Error()})
 		default:
-			writeJSON(w, http.StatusInternalServerError, messageResponse{Message: "failed to update post"})
+			writeError(w, http.StatusInternalServerError, "failed to update post", err)
 		}
 		return
 	}
@@ -366,7 +366,7 @@ func (h *PlatformHandler) DeletePost(w http.ResponseWriter, r *http.Request) {
 		case service.ErrPostNotDraft:
 			writeJSON(w, http.StatusConflict, messageResponse{Message: "only draft posts can be deleted"})
 		default:
-			writeJSON(w, http.StatusInternalServerError, messageResponse{Message: "failed to delete post"})
+			writeError(w, http.StatusInternalServerError, "failed to delete post", err)
 		}
 		return
 	}
@@ -397,14 +397,14 @@ func (h *PlatformHandler) PublishPost(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, service.ErrPublishFailed):
 			post, getErr := h.postSvc.Get(r.Context(), projectID, postID)
 			if getErr != nil {
-				writeJSON(w, http.StatusInternalServerError, messageResponse{Message: "publish failed"})
+				writeError(w, http.StatusInternalServerError, "publish failed", err)
 				return
 			}
 			writeJSON(w, http.StatusMultiStatus, publishResponse{
 				Post: *postInfoToResponse(post), Results: results,
 			})
 		default:
-			writeJSON(w, http.StatusInternalServerError, messageResponse{Message: "publish failed"})
+			writeError(w, http.StatusInternalServerError, "publish failed", err)
 		}
 		return
 	}

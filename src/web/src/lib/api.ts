@@ -35,6 +35,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     try {
       const body = await res.json();
       if (body.message) message = body.message;
+      if (body.detail) message += `: ${body.detail}`;
     } catch {
       // ignore parse errors
     }

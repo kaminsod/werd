@@ -14,7 +14,10 @@ import (
 	"github.com/werd-platform/werd/src/go/api/internal/storage"
 )
 
-var ErrInvalidCredentials = errors.New("invalid credentials")
+var (
+	ErrInvalidCredentials = errors.New("invalid credentials")
+	ErrAuthUserNotFound   = errors.New("user not found")
+)
 
 const (
 	bcryptCost  = 12
@@ -91,12 +94,12 @@ func (s *Auth) ValidateToken(tokenString string) (string, error) {
 func (s *Auth) GetUser(ctx context.Context, id string) (*AuthUser, error) {
 	uid, err := uuid.Parse(id)
 	if err != nil {
-		return nil, fmt.Errorf("invalid user ID: %w", err)
+		return nil, ErrAuthUserNotFound
 	}
 
 	user, err := s.q.GetUserByID(ctx, uid)
 	if err != nil {
-		return nil, fmt.Errorf("fetching user: %w", err)
+		return nil, ErrAuthUserNotFound
 	}
 
 	return &AuthUser{

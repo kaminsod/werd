@@ -57,7 +57,7 @@ func (h *NotificationHandler) ListRules(w http.ResponseWriter, r *http.Request) 
 
 	rules, err := h.notifSvc.ListRules(r.Context(), projectID)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, messageResponse{Message: "failed to list notification rules"})
+		writeError(w, http.StatusInternalServerError, "failed to list notification rules", err)
 		return
 	}
 
@@ -116,7 +116,7 @@ func (h *NotificationHandler) CreateRule(w http.ResponseWriter, r *http.Request)
 		case service.ErrMissingWebhookURL:
 			writeJSON(w, http.StatusBadRequest, messageResponse{Message: "webhook destination requires 'url' in config"})
 		default:
-			writeJSON(w, http.StatusInternalServerError, messageResponse{Message: "failed to create notification rule"})
+			writeError(w, http.StatusInternalServerError, "failed to create notification rule", err)
 		}
 		return
 	}
@@ -183,7 +183,7 @@ func (h *NotificationHandler) UpdateRule(w http.ResponseWriter, r *http.Request)
 		case service.ErrMissingWebhookURL:
 			writeJSON(w, http.StatusBadRequest, messageResponse{Message: "webhook destination requires 'url' in config"})
 		default:
-			writeJSON(w, http.StatusInternalServerError, messageResponse{Message: "failed to update notification rule"})
+			writeError(w, http.StatusInternalServerError, "failed to update notification rule", err)
 		}
 		return
 	}
@@ -208,7 +208,7 @@ func (h *NotificationHandler) DeleteRule(w http.ResponseWriter, r *http.Request)
 		case service.ErrRuleNotFound:
 			writeJSON(w, http.StatusNotFound, messageResponse{Message: "notification rule not found"})
 		default:
-			writeJSON(w, http.StatusInternalServerError, messageResponse{Message: "failed to delete notification rule"})
+			writeError(w, http.StatusInternalServerError, "failed to delete notification rule", err)
 		}
 		return
 	}

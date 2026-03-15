@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 
 	"github.com/werd-platform/werd/src/go/api/internal/middleware"
@@ -80,7 +81,13 @@ func (h *Auth) Me(w http.ResponseWriter, r *http.Request) {
 
 	user, err := h.svc.GetUser(r.Context(), userID)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, messageResponse{Message: "failed to fetch user"})
+		if err == service.ErrAuthUserNotFound {
+			// JWT is valid but user no longer exists (e.g., DB was reset).
+			// Return 401 so the frontend clears the stale token.
+			writeJSON(w, http.StatusUnauthorized, messageResponse{Message: "user no longer exists — please log in again"})
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "failed to fetch user", err)
 		return
 	}
 
@@ -116,7 +123,7 @@ func (h *Auth) ChangePassword(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusUnauthorized, messageResponse{Message: "current password is incorrect"})
 			return
 		}
-		writeJSON(w, http.StatusInternalServerError, messageResponse{Message: "failed to change password"})
+		writeError(w, http.StatusInternalServerError, "failed to change password", err)
 		return
 	}
 
@@ -129,4 +136,22 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(v)
+}
+
+// writeError logs the error server-side and returns a JSON error response
+// with both a human-readable message and the underlying error detail.
+func writeError(w http.ResponseWriter, status int, msg string, err error) {
+	detail := ""
+	if err != nil {
+		detail = err.Error()
+		log.Printf("ERROR [%d] %s: %v", status, msg, err)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(errorResponse{Message: msg, Detail: detail})
+}
+
+type errorResponse struct {
+	Message string `json:"message"`
+	Detail  string `json:"detail,omitempty"`
 }

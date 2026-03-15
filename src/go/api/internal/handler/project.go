@@ -90,12 +90,14 @@ func (h *ProjectHandler) CreateProject(w http.ResponseWriter, r *http.Request) {
 	proj, err := h.svc.Create(r.Context(), userID, req.Name, req.Slug)
 	if err != nil {
 		switch err {
+		case service.ErrUserNotFound:
+			writeJSON(w, http.StatusUnauthorized, messageResponse{Message: "user not found — please log in again"})
 		case service.ErrSlugTaken:
 			writeJSON(w, http.StatusConflict, messageResponse{Message: "slug already taken"})
 		case service.ErrInvalidSlug:
 			writeJSON(w, http.StatusBadRequest, messageResponse{Message: err.Error()})
 		default:
-			writeJSON(w, http.StatusInternalServerError, messageResponse{Message: "failed to create project"})
+			writeError(w, http.StatusInternalServerError, "failed to create project", err)
 		}
 		return
 	}
@@ -109,7 +111,7 @@ func (h *ProjectHandler) ListProjects(w http.ResponseWriter, r *http.Request) {
 
 	projects, err := h.svc.List(r.Context(), userID)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, messageResponse{Message: "failed to list projects"})
+		writeError(w, http.StatusInternalServerError, "failed to list projects", err)
 		return
 	}
 
@@ -165,7 +167,7 @@ func (h *ProjectHandler) UpdateProject(w http.ResponseWriter, r *http.Request) {
 		case service.ErrInvalidSlug:
 			writeJSON(w, http.StatusBadRequest, messageResponse{Message: err.Error()})
 		default:
-			writeJSON(w, http.StatusInternalServerError, messageResponse{Message: "failed to update project"})
+			writeError(w, http.StatusInternalServerError, "failed to update project", err)
 		}
 		return
 	}
@@ -184,7 +186,7 @@ func (h *ProjectHandler) DeleteProject(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.svc.Delete(r.Context(), projectID); err != nil {
-		writeJSON(w, http.StatusInternalServerError, messageResponse{Message: "failed to delete project"})
+		writeError(w, http.StatusInternalServerError, "failed to delete project", err)
 		return
 	}
 
@@ -197,7 +199,7 @@ func (h *ProjectHandler) ListMembers(w http.ResponseWriter, r *http.Request) {
 
 	members, err := h.svc.ListMembers(r.Context(), projectID)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, messageResponse{Message: "failed to list members"})
+		writeError(w, http.StatusInternalServerError, "failed to list members", err)
 		return
 	}
 
@@ -245,7 +247,7 @@ func (h *ProjectHandler) AddMember(w http.ResponseWriter, r *http.Request) {
 		case service.ErrInsufficientRole:
 			writeJSON(w, http.StatusBadRequest, messageResponse{Message: "cannot add member with owner role"})
 		default:
-			writeJSON(w, http.StatusInternalServerError, messageResponse{Message: "failed to add member"})
+			writeError(w, http.StatusInternalServerError, "failed to add member", err)
 		}
 		return
 	}
@@ -291,7 +293,7 @@ func (h *ProjectHandler) UpdateMemberRole(w http.ResponseWriter, r *http.Request
 		case service.ErrInsufficientRole:
 			writeJSON(w, http.StatusForbidden, messageResponse{Message: "insufficient permissions"})
 		default:
-			writeJSON(w, http.StatusInternalServerError, messageResponse{Message: "failed to update member role"})
+			writeError(w, http.StatusInternalServerError, "failed to update member role", err)
 		}
 		return
 	}
@@ -324,7 +326,7 @@ func (h *ProjectHandler) RemoveMember(w http.ResponseWriter, r *http.Request) {
 		case service.ErrInsufficientRole:
 			writeJSON(w, http.StatusForbidden, messageResponse{Message: "insufficient permissions"})
 		default:
-			writeJSON(w, http.StatusInternalServerError, messageResponse{Message: "failed to remove member"})
+			writeError(w, http.StatusInternalServerError, "failed to remove member", err)
 		}
 		return
 	}

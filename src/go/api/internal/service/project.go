@@ -62,6 +62,12 @@ func (s *Project) Create(ctx context.Context, userID, name, slug string) (*Proje
 		return nil, fmt.Errorf("invalid user ID: %w", err)
 	}
 
+	// Verify the user exists before proceeding (catches stale JWT after DB reset).
+	_, err = s.q.GetUserByID(ctx, uid)
+	if err != nil {
+		return nil, ErrUserNotFound
+	}
+
 	if !slugRegexp.MatchString(slug) {
 		return nil, ErrInvalidSlug
 	}

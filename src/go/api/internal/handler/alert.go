@@ -104,7 +104,7 @@ func (h *AlertHandler) IngestWebhook(w http.ResponseWriter, r *http.Request) {
 		case service.ErrInvalidSeverity:
 			writeJSON(w, http.StatusBadRequest, messageResponse{Message: "invalid severity"})
 		default:
-			writeJSON(w, http.StatusInternalServerError, messageResponse{Message: "failed to ingest alert"})
+			writeError(w, http.StatusInternalServerError, "failed to ingest alert", err)
 		}
 		return
 	}
@@ -139,7 +139,7 @@ func (h *AlertHandler) ListAlerts(w http.ResponseWriter, r *http.Request) {
 		case service.ErrInvalidSourceType:
 			writeJSON(w, http.StatusBadRequest, messageResponse{Message: "invalid source_type filter"})
 		default:
-			writeJSON(w, http.StatusInternalServerError, messageResponse{Message: "failed to list alerts"})
+			writeError(w, http.StatusInternalServerError, "failed to list alerts", err)
 		}
 		return
 	}
@@ -192,7 +192,7 @@ func (h *AlertHandler) UpdateAlertStatus(w http.ResponseWriter, r *http.Request)
 		case service.ErrInvalidStatus:
 			writeJSON(w, http.StatusBadRequest, messageResponse{Message: "invalid status"})
 		default:
-			writeJSON(w, http.StatusInternalServerError, messageResponse{Message: "failed to update alert"})
+			writeError(w, http.StatusInternalServerError, "failed to update alert", err)
 		}
 		return
 	}
@@ -208,7 +208,7 @@ func (h *AlertHandler) ListKeywords(w http.ResponseWriter, r *http.Request) {
 
 	keywords, err := h.keywordSvc.List(r.Context(), projectID)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, messageResponse{Message: "failed to list keywords"})
+		writeError(w, http.StatusInternalServerError, "failed to list keywords", err)
 		return
 	}
 
@@ -251,7 +251,7 @@ func (h *AlertHandler) CreateKeyword(w http.ResponseWriter, r *http.Request) {
 		case service.ErrInvalidRegex:
 			writeJSON(w, http.StatusBadRequest, messageResponse{Message: "invalid regex pattern"})
 		default:
-			writeJSON(w, http.StatusInternalServerError, messageResponse{Message: "failed to create keyword"})
+			writeError(w, http.StatusInternalServerError, "failed to create keyword", err)
 		}
 		return
 	}
@@ -276,7 +276,7 @@ func (h *AlertHandler) DeleteKeyword(w http.ResponseWriter, r *http.Request) {
 		case service.ErrKeywordNotFound:
 			writeJSON(w, http.StatusNotFound, messageResponse{Message: "keyword not found"})
 		default:
-			writeJSON(w, http.StatusInternalServerError, messageResponse{Message: "failed to delete keyword"})
+			writeError(w, http.StatusInternalServerError, "failed to delete keyword", err)
 		}
 		return
 	}

@@ -52,7 +52,7 @@ func (h *MonitorSourceHandler) ListSources(w http.ResponseWriter, r *http.Reques
 
 	sources, err := h.svc.List(r.Context(), projectID)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, messageResponse{Message: "failed to list monitor sources"})
+		writeError(w, http.StatusInternalServerError, "failed to list monitor sources", err)
 		return
 	}
 
@@ -97,7 +97,7 @@ func (h *MonitorSourceHandler) CreateSource(w http.ResponseWriter, r *http.Reque
 		case service.ErrInvalidSourceType:
 			writeJSON(w, http.StatusBadRequest, messageResponse{Message: "invalid type; must be reddit, hn, web, rss, or github"})
 		default:
-			writeJSON(w, http.StatusInternalServerError, messageResponse{Message: "failed to create monitor source"})
+			writeError(w, http.StatusInternalServerError, "failed to create monitor source", err)
 		}
 		return
 	}
@@ -156,7 +156,7 @@ func (h *MonitorSourceHandler) UpdateSource(w http.ResponseWriter, r *http.Reque
 		case service.ErrInvalidSourceType:
 			writeJSON(w, http.StatusBadRequest, messageResponse{Message: "invalid type"})
 		default:
-			writeJSON(w, http.StatusInternalServerError, messageResponse{Message: "failed to update monitor source"})
+			writeError(w, http.StatusInternalServerError, "failed to update monitor source", err)
 		}
 		return
 	}

@@ -61,6 +61,8 @@ func main() {
 	// Platform integration.
 	adapterRegistry := integration.NewRegistry()
 	adapterRegistry.Register("bluesky", integration.NewBluesky(""))
+	adapterRegistry.Register("reddit", integration.NewReddit())
+	adapterRegistry.Register("hn", integration.NewHN())
 
 	monitorSourceService := service.NewMonitorSource(queries)
 	platformService := service.NewPlatform(queries, adapterRegistry)

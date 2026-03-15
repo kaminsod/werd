@@ -106,6 +106,14 @@ export const navConnections: HelpEntry = {
           <strong>Bluesky</strong> — uses an app password (not your main password).
           Generate one at Settings → App Passwords in Bluesky.
         </li>
+        <li>
+          <strong>Reddit</strong> — uses a "script" app for OAuth2.
+          Create one at reddit.com/prefs/apps. Each connection targets a single subreddit.
+        </li>
+        <li>
+          <strong>Hacker News</strong> — monitoring only (no posting API).
+          No credentials needed. Alerts are ingested by the HN monitor.
+        </li>
       </ul>
       <p>Credentials are stored securely and never shown after creation.</p>
     </>
@@ -311,6 +319,26 @@ export const platformCredentials: HelpEntry = {
       <p className="mb-2">
         Generate an app password in Bluesky: Settings → App Passwords → Add App Password.
         Do not use your main account password.
+      </p>
+      <p className="mb-2"><strong>Reddit:</strong></p>
+      <pre className="mb-2 rounded bg-gray-100 p-2 text-xs overflow-x-auto">
+{`{
+  "client_id": "your_app_client_id",
+  "client_secret": "your_app_client_secret",
+  "username": "your_reddit_username",
+  "password": "your_reddit_password",
+  "user_agent": "werd/1.0 by u/yourname",
+  "subreddit": "target_subreddit"
+}`}
+      </pre>
+      <p className="mb-2">
+        Create a Reddit "script" app at reddit.com/prefs/apps.
+        The first line of your post content becomes the Reddit title.
+      </p>
+      <p className="mb-2"><strong>Hacker News:</strong></p>
+      <p className="mb-2">
+        HN is monitoring-only — no credentials needed. Add an HN connection to receive
+        alerts from the HN monitor. Cross-posting to HN is not supported (no posting API).
       </p>
       <p>Credentials are validated on save and never shown again after creation.</p>
     </>

@@ -5,15 +5,22 @@ import InfoIcon from "@/components/info-icon";
 import { platformCredentials as credsHelp } from "@/lib/help-content";
 import type { Connection } from "@/types/api";
 
-const PLATFORMS = ["bluesky"];
+const PLATFORMS = ["bluesky", "reddit", "hn"];
 
 const PLATFORM_LABELS: Record<string, string> = {
   bluesky: "Bluesky",
+  reddit: "Reddit",
+  hn: "Hacker News",
 };
 
 const CREDENTIAL_HINTS: Record<string, string> = {
   bluesky: '{"identifier": "user.bsky.social", "app_password": "xxxx-xxxx-xxxx-xxxx"}',
+  reddit: '{"client_id": "...", "client_secret": "...", "username": "...", "password": "...", "user_agent": "werd/1.0 by u/you", "subreddit": "test"}',
+  hn: '{}',
 };
+
+// Platforms that support publishing (HN is monitoring-only).
+const PUBLISHABLE_PLATFORMS = new Set(["bluesky", "reddit"]);
 
 export default function ConnectionsPage() {
   const { id: projectId } = useParams<{ id: string }>();
@@ -117,6 +124,12 @@ export default function ConnectionsPage() {
             </label>
           </div>
 
+          {!PUBLISHABLE_PLATFORMS.has(formPlatform) && (
+            <p className="rounded bg-amber-50 px-3 py-2 text-xs text-amber-700">
+              {PLATFORM_LABELS[formPlatform] ?? formPlatform} is monitoring-only — alerts are ingested but cross-posting is not supported.
+            </p>
+          )}
+
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-600">
               Credentials (JSON)
@@ -126,7 +139,7 @@ export default function ConnectionsPage() {
             <textarea
               value={formCreds}
               onChange={(e) => setFormCreds(e.target.value)}
-              required
+              required={PUBLISHABLE_PLATFORMS.has(formPlatform)}
               rows={3}
               className="w-full rounded border px-3 py-2 font-mono text-sm"
               placeholder={CREDENTIAL_HINTS[formPlatform] ?? "{}"}
@@ -161,6 +174,9 @@ export default function ConnectionsPage() {
                 <span className={`rounded px-2 py-0.5 text-xs ${conn.enabled ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-400"}`}>
                   {conn.enabled ? "enabled" : "disabled"}
                 </span>
+                {!PUBLISHABLE_PLATFORMS.has(conn.platform) && (
+                  <span className="rounded bg-amber-50 px-2 py-0.5 text-xs text-amber-600">monitoring only</span>
+                )}
                 <span className="text-xs text-gray-400">
                   Connected {new Date(conn.created_at).toLocaleDateString()}
                 </span>

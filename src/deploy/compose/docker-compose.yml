@@ -184,7 +184,7 @@ services:
       retries: 3
       start_period: 30s
 
-  # ── Custom Monitors ──
+  # ── Custom Monitors (activate by setting env vars) ──
 
   # reddit-monitor:
   #   build:
@@ -193,14 +193,20 @@ services:
   #   restart: unless-stopped
   #   environment:
   #     WERD_API_URL: http://werd-api:8090
+  #     WERD_INTERNAL_API_KEY: ${WERD_INTERNAL_API_KEY}
+  #     WERD_PROJECT_ID: ${REDDIT_MONITOR_PROJECT_ID}
+  #     WERD_SUBREDDITS: ${REDDIT_MONITOR_SUBREDDITS}
+  #     WERD_POLL_INTERVAL: ${REDDIT_POLL_INTERVAL:-60s}
   #     REDDIT_CLIENT_ID: ${REDDIT_CLIENT_ID}
   #     REDDIT_CLIENT_SECRET: ${REDDIT_CLIENT_SECRET}
+  #     REDDIT_USERNAME: ${REDDIT_USERNAME}
+  #     REDDIT_PASSWORD: ${REDDIT_PASSWORD}
+  #     REDDIT_USER_AGENT: ${REDDIT_USER_AGENT:-werd-monitor-reddit/1.0}
   #   networks:
   #     - werd-net
   #   depends_on:
   #     werd-api:
   #       condition: service_healthy
-  #   # TODO: add healthcheck when monitor gains HTTP endpoint (Phase 5)
 
   # hn-monitor:
   #   build:
@@ -209,12 +215,15 @@ services:
   #   restart: unless-stopped
   #   environment:
   #     WERD_API_URL: http://werd-api:8090
+  #     WERD_INTERNAL_API_KEY: ${WERD_INTERNAL_API_KEY}
+  #     WERD_PROJECT_ID: ${HN_MONITOR_PROJECT_ID}
+  #     WERD_POLL_INTERVAL: ${HN_POLL_INTERVAL:-60s}
+  #     WERD_HN_KEYWORDS: ${HN_MONITOR_KEYWORDS:-}
   #   networks:
   #     - werd-net
   #   depends_on:
   #     werd-api:
   #       condition: service_healthy
-  #   # TODO: add healthcheck when monitor gains HTTP endpoint (Phase 5)
 
   # ── Residential Tunnel (activate with: --profile residential) ──
 

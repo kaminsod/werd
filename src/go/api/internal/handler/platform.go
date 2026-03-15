@@ -281,8 +281,8 @@ func (h *PlatformHandler) CreatePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Content == "" {
-		writeJSON(w, http.StatusBadRequest, messageResponse{Message: "content is required"})
+	if req.Content == "" && req.Title == "" && req.URL == "" {
+		writeJSON(w, http.StatusBadRequest, messageResponse{Message: "content, title, or url is required"})
 		return
 	}
 	if len(req.Platforms) == 0 {
@@ -335,8 +335,12 @@ func (h *PlatformHandler) UpdatePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Content == "" || len(req.Platforms) == 0 {
-		writeJSON(w, http.StatusBadRequest, messageResponse{Message: "content and at least one platform are required"})
+	if req.Content == "" && req.Title == "" && req.URL == "" {
+		writeJSON(w, http.StatusBadRequest, messageResponse{Message: "content, title, or url is required"})
+		return
+	}
+	if len(req.Platforms) == 0 {
+		writeJSON(w, http.StatusBadRequest, messageResponse{Message: "at least one platform is required"})
 		return
 	}
 

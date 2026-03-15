@@ -10,7 +10,8 @@ set -euo pipefail
 # Usage:
 #   ./tools/runner.sh start                       — build and start all services
 #   ./tools/runner.sh stop                        — stop all services
-#   ./tools/runner.sh restart                     — stop then start
+#   ./tools/runner.sh restart                     — stop then start (no rebuild)
+#   ./tools/runner.sh rebuild                     — rebuild all images and redeploy
 #   ./tools/runner.sh status                      — show service health and ports
 #
 #   ./tools/runner.sh containers ls               — list all containers
@@ -68,9 +69,9 @@ fi
 
 if [ -z "$SUBCOMMAND" ]; then
   echo "Usage:"
-  echo "  $0 <start|stop|restart|status>"
+  echo "  $0 <start|stop|restart|rebuild|status>"
   echo "  $0 containers <ls|status>"
-  echo "  $0 containers --name=<service> <start|stop|restart|status|logs>"
+  echo "  $0 containers --name=<service> <start|stop|restart|rebuild|status|logs>"
   exit 1
 fi
 
@@ -150,6 +151,20 @@ ensure_env() {
   fi
 }
 
+# ── Apply database migrations ──
+
+apply_migrations() {
+  echo "Applying database migrations..."
+  for migration_file in "$REPO_ROOT"/src/go/api/migrations/*.sql; do
+    [ -f "$migration_file" ] || continue
+    sed -n '/^-- +goose Up$/,/^-- +goose Down$/p' "$migration_file" \
+      | sed '/^-- +goose/d' \
+      | compose_cmd exec -T postgres psql -U werd -d werd -f - 2>&1 \
+      | sed '/already exists/d; /^$/d' || true
+  done
+  echo "Migrations applied."
+}
+
 # ── Wait for healthy ──
 
 wait_for_healthy() {
@@ -217,9 +232,10 @@ print_access_info() {
   echo "  Manage:"
   echo "    $0 status                          — service health"
   echo "    $0 stop                            — stop all services"
-  echo "    $0 restart                         — restart all services"
+  echo "    $0 restart                         — restart (no rebuild)"
+  echo "    $0 rebuild                         — rebuild all + redeploy"
   echo "    $0 containers ls                   — list containers"
-  echo "    $0 containers --name=<svc> logs    — tail service logs"
+  echo "    $0 containers --name=<svc> rebuild — rebuild + redeploy one"
   echo "============================================"
 }
 
@@ -251,16 +267,7 @@ cmd_start() {
     pg_elapsed=$((pg_elapsed + 2))
   done
 
-  # Apply all database migrations (in order).
-  echo "Applying database migrations..."
-  for migration_file in "$REPO_ROOT"/src/go/api/migrations/*.sql; do
-    [ -f "$migration_file" ] || continue
-    sed -n '/^-- +goose Up$/,/^-- +goose Down$/p' "$migration_file" \
-      | sed '/^-- +goose/d' \
-      | compose_cmd exec -T postgres psql -U werd -d werd -f - 2>&1 \
-      | sed '/already exists/d; /^$/d' || true
-  done
-  echo "Migrations applied."
+  apply_migrations
 
   # Now start all remaining services.
   echo ""
@@ -286,6 +293,33 @@ cmd_restart() {
   echo "=== Werd Runner: restart ==="
   compose_cmd down
   cmd_start
+}
+
+cmd_rebuild() {
+  echo "=== Werd Runner: rebuild ==="
+  echo "Compose: $COMPOSE_CMD"
+  echo "Mode:    $MODE"
+  echo ""
+
+  echo "Rebuilding all images..."
+  compose_cmd build 2>&1 | tail -15
+
+  # Apply migrations if postgres is running.
+  if compose_cmd exec -T postgres pg_isready -U werd >/dev/null 2>&1; then
+    apply_migrations
+  fi
+
+  echo ""
+  echo "Redeploying all services..."
+  compose_cmd up -d --build
+
+  if [ "$MODE" = "local" ]; then
+    wait_for_healthy "http://localhost:3081/api/healthz" 120 || true
+  else
+    wait_for_healthy "http://localhost:80" 120 || true
+  fi
+
+  print_access_info
 }
 
 cmd_status() {
@@ -506,14 +540,15 @@ case "$SUBCOMMAND" in
   start)      cmd_start ;;
   stop)       cmd_stop ;;
   restart)    cmd_restart ;;
+  rebuild)    cmd_rebuild ;;
   status)     cmd_status ;;
   containers) cmd_containers ;;
   *)
     echo "Unknown command: $SUBCOMMAND"
     echo "Usage:"
-    echo "  $0 <start|stop|restart|status>"
+    echo "  $0 <start|stop|restart|rebuild|status>"
     echo "  $0 containers <ls|status>"
-    echo "  $0 containers --name=<service> <start|stop|restart|status|logs>"
+    echo "  $0 containers --name=<service> <start|stop|restart|rebuild|status|logs>"
     exit 1
     ;;
 esac

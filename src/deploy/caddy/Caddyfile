@@ -70,7 +70,7 @@ ntfy.{$WERD_DOMAIN} {
 	import security_headers
 
 	# ntfy uses WebSocket and Server-Sent Events for real-time push
-	reverse_proxy ntfy:2586
+	reverse_proxy ntfy:80
 }
 
 analytics.{$WERD_DOMAIN} {

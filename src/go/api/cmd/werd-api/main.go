@@ -25,16 +25,29 @@ func main() {
 		log.Fatalf("config: %v", err)
 	}
 
-	// Database connection pool.
+	// Database connection pool with retry.
 	ctx := context.Background()
-	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
-	if err != nil {
-		log.Fatalf("database: %v", err)
+	var pool *pgxpool.Pool
+	for attempt := 1; attempt <= 30; attempt++ {
+		var err error
+		pool, err = pgxpool.New(ctx, cfg.DatabaseURL)
+		if err != nil {
+			log.Printf("database connect attempt %d/30: %v", attempt, err)
+			time.Sleep(2 * time.Second)
+			continue
+		}
+		if err = pool.Ping(ctx); err != nil {
+			pool.Close()
+			log.Printf("database ping attempt %d/30: %v", attempt, err)
+			time.Sleep(2 * time.Second)
+			continue
+		}
+		break
+	}
+	if pool == nil {
+		log.Fatalf("database: failed to connect after 30 attempts")
 	}
 	defer pool.Close()
-	if err := pool.Ping(ctx); err != nil {
-		log.Fatalf("database ping: %v", err)
-	}
 	log.Println("database connected")
 
 	// Storage and services.

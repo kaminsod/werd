@@ -55,7 +55,7 @@
 
 :3084 {
 	import security_headers_local
-	reverse_proxy ntfy:2586
+	reverse_proxy ntfy:80
 }
 
 :3085 {

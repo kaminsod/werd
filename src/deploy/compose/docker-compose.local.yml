@@ -1,0 +1,30 @@
+# Compose override for local/LAN mode.
+#
+# Swaps the production Caddyfile for Caddyfile.local (port-based, no TLS,
+# no domain required) and exposes services on LAN-accessible ports.
+#
+# Used by tools/runner.sh via:
+#   $COMPOSE_CMD -f docker-compose.yml -f docker-compose.local.yml ...
+#
+# The CADDYFILE_PATH env var is set by the runner to the absolute path
+# of Caddyfile.local, avoiding compose path resolution differences.
+
+services:
+  caddy:
+    ports:
+      - "3080:3080"
+      - "3081:3081"
+      - "3082:3082"
+      - "3083:3083"
+      - "3084:3084"
+      - "3085:3085"
+    volumes:
+      - ${CADDYFILE_PATH}:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3081/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

@@ -25,7 +25,7 @@ func Load() (*Config, error) {
 		RedisURL:      os.Getenv("REDIS_URL"),
 		JWTSecret:      os.Getenv("WERD_JWT_SECRET"),
 		InternalAPIKey: os.Getenv("WERD_INTERNAL_API_KEY"),
-		NtfyURL:        envOr("WERD_NTFY_URL", "http://ntfy:2586"),
+		NtfyURL:        envOr("WERD_NTFY_URL", "http://ntfy:80"),
 		AdminEmail:     os.Getenv("WERD_ADMIN_EMAIL"),
 		AdminPassword: os.Getenv("WERD_ADMIN_PASSWORD"),
 	}

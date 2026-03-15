@@ -33,7 +33,7 @@ export function usePost(projectId: string, postId: string) {
 export function useCreatePost(projectId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: { content: string; platforms: string[] }) =>
+    mutationFn: (data: { title?: string; content: string; url?: string; post_type?: string; platforms: string[] }) =>
       apiMutate<Post>(`/projects/${projectId}/posts`, "POST", data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["projects", projectId, "posts"] }),
   });
@@ -42,7 +42,7 @@ export function useCreatePost(projectId: string) {
 export function useUpdatePost(projectId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ postId, ...data }: { postId: string; content: string; platforms: string[] }) =>
+    mutationFn: ({ postId, ...data }: { postId: string; title?: string; content: string; url?: string; post_type?: string; platforms: string[] }) =>
       apiMutate<Post>(`/projects/${projectId}/posts/${postId}`, "PUT", data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["projects", projectId, "posts"] }),
   });

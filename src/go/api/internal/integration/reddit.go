@@ -69,9 +69,9 @@ func (r *Reddit) ValidateCredentials(ctx context.Context, credentials json.RawMe
 	return err
 }
 
-// Publish creates a text post on Reddit. The first line of content is used
-// as the post title, and the remaining lines as the body.
-func (r *Reddit) Publish(ctx context.Context, content string, credentials json.RawMessage) (*PublishResult, error) {
+// Publish creates a post on Reddit. Supports text posts (title + body)
+// and link posts (title + URL).
+func (r *Reddit) Publish(ctx context.Context, content PublishContent, credentials json.RawMessage) (*PublishResult, error) {
 	creds, err := r.parseCreds(credentials)
 	if err != nil {
 		return nil, err
@@ -82,9 +82,19 @@ func (r *Reddit) Publish(ctx context.Context, content string, credentials json.R
 		return nil, fmt.Errorf("reddit: getting access token: %w", err)
 	}
 
-	title, body := splitTitleBody(content)
+	// Use structured fields if title is set, otherwise fall back to splitting body.
+	title := content.Title
+	body := content.Body
+	if title == "" && body != "" {
+		title, body = splitTitleBody(body)
+	}
 
-	name, postURL, err := r.submitPost(ctx, token, creds, title, body)
+	var name, postURL string
+	if content.PostType == "link" && content.URL != "" {
+		name, postURL, err = r.submitLinkPost(ctx, token, creds, title, content.URL)
+	} else {
+		name, postURL, err = r.submitPost(ctx, token, creds, title, body)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("reddit: submitting post: %w", err)
 	}
@@ -210,6 +220,58 @@ func (r *Reddit) submitPost(ctx context.Context, token string, creds *RedditCred
 		return "", "", fmt.Errorf("parsing submit response: %w", err)
 	}
 
+	if len(result.JSON.Errors) > 0 {
+		return "", "", fmt.Errorf("reddit API errors: %v", result.JSON.Errors)
+	}
+
+	return result.JSON.Data.Name, result.JSON.Data.URL, nil
+}
+
+func (r *Reddit) submitLinkPost(ctx context.Context, token string, creds *RedditCredentials, title, linkURL string) (string, string, error) {
+	form := url.Values{
+		"api_type": {"json"},
+		"kind":     {"link"},
+		"sr":       {creds.Subreddit},
+		"title":    {title},
+		"url":      {linkURL},
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		r.apiHost+"/api/submit", strings.NewReader(form.Encode()))
+	if err != nil {
+		return "", "", err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("User-Agent", creds.UserAgent)
+
+	resp, err := r.httpCli.Do(req)
+	if err != nil {
+		return "", "", fmt.Errorf("link submit failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", "", fmt.Errorf("reading submit response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return "", "", fmt.Errorf("link submit failed (status %d): %s", resp.StatusCode, string(respBody))
+	}
+
+	var result struct {
+		JSON struct {
+			Errors [][]string `json:"errors"`
+			Data   struct {
+				Name string `json:"name"`
+				URL  string `json:"url"`
+			} `json:"data"`
+		} `json:"json"`
+	}
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return "", "", fmt.Errorf("parsing submit response: %w", err)
+	}
 	if len(result.JSON.Errors) > 0 {
 		return "", "", fmt.Errorf("reddit API errors: %v", result.JSON.Errors)
 	}

@@ -323,6 +323,48 @@ func (ns NullPostStatus) Value() (driver.Value, error) {
 	return string(ns.PostStatus), nil
 }
 
+type PostType string
+
+const (
+	PostTypeText PostType = "text"
+	PostTypeLink PostType = "link"
+)
+
+func (e *PostType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = PostType(s)
+	case string:
+		*e = PostType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for PostType: %T", src)
+	}
+	return nil
+}
+
+type NullPostType struct {
+	PostType PostType `json:"post_type"`
+	Valid    bool     `json:"valid"` // Valid is true if PostType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullPostType) Scan(value interface{}) error {
+	if value == nil {
+		ns.PostType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.PostType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullPostType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.PostType), nil
+}
+
 type ProjectRole string
 
 const (
@@ -519,6 +561,18 @@ type PlatformConnection struct {
 	Method      string             `json:"method"`
 }
 
+type PostPlatformResult struct {
+	ID             uuid.UUID          `json:"id"`
+	PostID         uuid.UUID          `json:"post_id"`
+	Platform       string             `json:"platform"`
+	PlatformPostID string             `json:"platform_post_id"`
+	PlatformUrl    string             `json:"platform_url"`
+	Success        bool               `json:"success"`
+	ErrorMessage   string             `json:"error_message"`
+	PublishedAt    pgtype.Timestamptz `json:"published_at"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
 type Project struct {
 	ID        uuid.UUID          `json:"id"`
 	Name      string             `json:"name"`
@@ -545,6 +599,9 @@ type PublishedPost struct {
 	Status      PostStatus         `json:"status"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	Title       string             `json:"title"`
+	Url         string             `json:"url"`
+	PostType    PostType           `json:"post_type"`
 }
 
 type ServiceInstance struct {

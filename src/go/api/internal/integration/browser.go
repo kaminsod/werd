@@ -93,16 +93,25 @@ func (b *BrowserAdapter) ValidateCredentials(ctx context.Context, credentials js
 	return nil
 }
 
-func (b *BrowserAdapter) Publish(ctx context.Context, content string, credentials json.RawMessage) (*PublishResult, error) {
+func (b *BrowserAdapter) Publish(ctx context.Context, content PublishContent, credentials json.RawMessage) (*PublishResult, error) {
 	var creds map[string]any
 	if err := json.Unmarshal(credentials, &creds); err != nil {
 		return nil, fmt.Errorf("browser: invalid credentials JSON: %w", err)
 	}
 
+	// Build content string for browser service — use structured fields if available.
+	contentStr := content.Body
+	if content.Title != "" {
+		contentStr = content.Title + "\n" + content.Body
+	}
+	if content.PostType == "link" && content.URL != "" {
+		contentStr = content.Title + "\n" + content.URL
+	}
+
 	req := browserPublishRequest{
 		Platform:    b.platform,
 		Credentials: creds,
-		Content:     content,
+		Content:     contentStr,
 		Options:     map[string]any{"headless": true, "timeout_secs": 45, "screenshot_on_error": true},
 	}
 

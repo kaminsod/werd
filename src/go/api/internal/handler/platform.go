@@ -49,19 +49,28 @@ type connectionResponse struct {
 }
 
 type createPostRequest struct {
+	Title     string   `json:"title"`
 	Content   string   `json:"content"`
+	URL       string   `json:"url"`
+	PostType  string   `json:"post_type"`
 	Platforms []string `json:"platforms"`
 }
 
 type updatePostRequest struct {
+	Title     string   `json:"title"`
 	Content   string   `json:"content"`
+	URL       string   `json:"url"`
+	PostType  string   `json:"post_type"`
 	Platforms []string `json:"platforms"`
 }
 
 type postResponse struct {
 	ID          string     `json:"id"`
 	ProjectID   string     `json:"project_id"`
+	Title       string     `json:"title"`
 	Content     string     `json:"content"`
+	URL         string     `json:"url,omitempty"`
+	PostType    string     `json:"post_type"`
 	Platforms   []string   `json:"platforms"`
 	ScheduledAt *time.Time `json:"scheduled_at,omitempty"`
 	PublishedAt *time.Time `json:"published_at,omitempty"`
@@ -281,7 +290,7 @@ func (h *PlatformHandler) CreatePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	post, err := h.postSvc.Create(r.Context(), projectID, req.Content, req.Platforms)
+	post, err := h.postSvc.Create(r.Context(), projectID, req.Title, req.Content, req.URL, req.PostType, req.Platforms)
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrUnsupportedPlatform):
@@ -331,7 +340,7 @@ func (h *PlatformHandler) UpdatePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	post, err := h.postSvc.Update(r.Context(), projectID, postID, req.Content, req.Platforms)
+	post, err := h.postSvc.Update(r.Context(), projectID, postID, req.Title, req.Content, req.URL, req.PostType, req.Platforms)
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrPostNotFound):
@@ -433,8 +442,9 @@ func connInfoToResponse(c *service.ConnectionInfo) *connectionResponse {
 
 func postInfoToResponse(p *service.PostInfo) *postResponse {
 	return &postResponse{
-		ID: p.ID, ProjectID: p.ProjectID, Content: p.Content,
-		Platforms: p.Platforms, ScheduledAt: p.ScheduledAt, PublishedAt: p.PublishedAt,
+		ID: p.ID, ProjectID: p.ProjectID, Title: p.Title, Content: p.Content,
+		URL: p.URL, PostType: p.PostType, Platforms: p.Platforms,
+		ScheduledAt: p.ScheduledAt, PublishedAt: p.PublishedAt,
 		Status: p.Status, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt,
 	}
 }

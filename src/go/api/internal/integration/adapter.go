@@ -6,10 +6,18 @@ import (
 	"fmt"
 )
 
+// PublishContent holds structured post data for platform adapters.
+type PublishContent struct {
+	Title    string `json:"title"`     // Post title (Reddit, HN)
+	Body     string `json:"body"`      // Post body/text content
+	URL      string `json:"url"`       // Link URL (for link posts)
+	PostType string `json:"post_type"` // "text" or "link"
+}
+
 // PlatformAdapter defines the contract for social platform integrations.
 type PlatformAdapter interface {
 	// Publish posts content to the platform using the provided credentials.
-	Publish(ctx context.Context, content string, credentials json.RawMessage) (*PublishResult, error)
+	Publish(ctx context.Context, content PublishContent, credentials json.RawMessage) (*PublishResult, error)
 
 	// ValidateCredentials checks whether credentials are well-formed and can
 	// authenticate with the platform.

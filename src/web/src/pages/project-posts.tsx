@@ -35,7 +35,10 @@ export default function PostsPage() {
 
   const [showCompose, setShowCompose] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
+  const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
+  const [postURL, setPostURL] = useState("");
+  const [postType, setPostType] = useState<"text" | "link">("text");
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
   const [publishResults, setPublishResults] = useState<PlatformPublishResult[] | null>(null);
 
@@ -47,8 +50,15 @@ export default function PostsPage() {
     .map((c) => c.platform)
     .filter((v, i, a) => a.indexOf(v) === i) ?? [];
 
+  // Determine if any selected platform needs a title (Reddit, HN).
+  const needsTitle = selectedPlatforms.some((p) => p === "reddit" || p === "hn");
+  const needsPostType = needsTitle;
+
   function resetForm() {
+    setTitle("");
     setContent("");
+    setPostURL("");
+    setPostType("text");
     setSelectedPlatforms([]);
     setShowCompose(false);
     setEditId(null);
@@ -57,7 +67,10 @@ export default function PostsPage() {
 
   function startEdit(post: Post) {
     setEditId(post.id);
+    setTitle(post.title || "");
     setContent(post.content);
+    setPostURL(post.url || "");
+    setPostType(post.post_type || "text");
     setSelectedPlatforms(post.platforms);
     setShowCompose(true);
     setPublishResults(null);
@@ -71,16 +84,14 @@ export default function PostsPage() {
 
   function handleSave(e: FormEvent) {
     e.preventDefault();
+    const postData = { title, content, url: postURL, post_type: postType, platforms: selectedPlatforms };
     if (editId) {
       updatePost.mutate(
-        { postId: editId, content, platforms: selectedPlatforms },
+        { postId: editId, ...postData },
         { onSuccess: resetForm },
       );
     } else {
-      createPost.mutate(
-        { content, platforms: selectedPlatforms },
-        { onSuccess: resetForm },
-      );
+      createPost.mutate(postData, { onSuccess: resetForm });
     }
   }
 
@@ -126,14 +137,63 @@ export default function PostsPage() {
             </p>
           )}
 
-          <textarea
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            required
-            rows={5}
-            placeholder="Write your post..."
-            className="w-full rounded border px-3 py-2 text-sm"
-          />
+          {/* Post type selector (for Reddit, HN) */}
+          {needsPostType && (
+            <div className="flex items-center gap-4">
+              <label className="text-xs font-medium text-gray-600">Post type:</label>
+              <label className="flex items-center gap-1.5">
+                <input type="radio" name="post_type" value="text" checked={postType === "text"} onChange={() => setPostType("text")} />
+                <span className="text-sm">Text Post</span>
+              </label>
+              <label className="flex items-center gap-1.5">
+                <input type="radio" name="post_type" value="link" checked={postType === "link"} onChange={() => setPostType("link")} />
+                <span className="text-sm">Link Post</span>
+              </label>
+            </div>
+          )}
+
+          {/* Title field (for Reddit, HN) */}
+          {needsTitle && (
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-600">Title</label>
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Post title..."
+                className="w-full rounded border px-3 py-2 text-sm"
+              />
+            </div>
+          )}
+
+          {/* URL field (for link posts) */}
+          {postType === "link" && (
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-600">URL</label>
+              <input
+                value={postURL}
+                onChange={(e) => setPostURL(e.target.value)}
+                type="url"
+                placeholder="https://example.com/article"
+                className="w-full rounded border px-3 py-2 text-sm"
+              />
+            </div>
+          )}
+
+          {/* Body/content */}
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-600">
+              {needsTitle ? "Body" : "Content"}
+              {postType === "link" && <span className="font-normal text-gray-400"> (optional for link posts)</span>}
+            </label>
+            <textarea
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              required={postType !== "link"}
+              rows={5}
+              placeholder={needsTitle ? "Post body (optional for link posts)..." : "Write your post..."}
+              className="w-full rounded border px-3 py-2 text-sm"
+            />
+          </div>
 
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-600">Platforms</label>
@@ -237,6 +297,12 @@ export default function PostsPage() {
                     : new Date(post.created_at).toLocaleString()}
                 </span>
               </div>
+              {post.title && (
+                <p className="mb-1 text-sm font-medium text-gray-900">{post.title}</p>
+              )}
+              {post.url && (
+                <p className="mb-1 text-xs text-blue-600 truncate">{post.url}</p>
+              )}
               <p className="mb-2 whitespace-pre-wrap text-sm text-gray-700">
                 {post.content.length > 200 ? post.content.slice(0, 200) + "..." : post.content}
               </p>

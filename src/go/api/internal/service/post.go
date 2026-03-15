@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/werd-platform/werd/src/go/api/internal/integration"
 	"github.com/werd-platform/werd/src/go/api/internal/storage"
@@ -23,7 +24,10 @@ var (
 type PostInfo struct {
 	ID          string
 	ProjectID   string
+	Title       string
 	Content     string
+	URL         string
+	PostType    string
 	Platforms   []string
 	ScheduledAt *time.Time
 	PublishedAt *time.Time
@@ -57,7 +61,7 @@ func NewPost(q *storage.Queries, platformSvc *Platform, registry *integration.Re
 }
 
 // Create creates a new draft post.
-func (s *Post) Create(ctx context.Context, projectID, content string, platforms []string) (*PostInfo, error) {
+func (s *Post) Create(ctx context.Context, projectID, title, content, postURL, postType string, platforms []string) (*PostInfo, error) {
 	pid, err := uuid.Parse(projectID)
 	if err != nil {
 		return nil, ErrProjectNotFound
@@ -65,6 +69,9 @@ func (s *Post) Create(ctx context.Context, projectID, content string, platforms 
 
 	if len(platforms) == 0 {
 		return nil, ErrNoPlatforms
+	}
+	if postType == "" {
+		postType = "text"
 	}
 
 	// Validate all platforms have at least one registered adapter (api or browser).
@@ -78,7 +85,10 @@ func (s *Post) Create(ctx context.Context, projectID, content string, platforms 
 
 	post, err := s.q.CreatePublishedPost(ctx, storage.CreatePublishedPostParams{
 		ProjectID: pid,
+		Title:     title,
 		Content:   content,
+		Url:       postURL,
+		PostType:  storage.PostType(postType),
 		Platforms: platforms,
 		Status:    storage.PostStatusDraft,
 	})
@@ -86,7 +96,7 @@ func (s *Post) Create(ctx context.Context, projectID, content string, platforms 
 		return nil, fmt.Errorf("creating post: %w", err)
 	}
 
-	return storagePostToInfo(post), nil
+	return postFromCreate(post), nil
 }
 
 func (s *Post) List(ctx context.Context, projectID, status string, limit, offset int32) (*PostListResult, error) {
@@ -102,12 +112,12 @@ func (s *Post) List(ctx context.Context, projectID, status string, limit, offset
 		offset = 0
 	}
 
-	var posts []storage.PublishedPost
+	var result []PostInfo
 	var total int64
 
 	if status != "" {
 		ps := storage.PostStatus(status)
-		posts, err = s.q.ListPublishedPostsByStatus(ctx, storage.ListPublishedPostsByStatusParams{
+		posts, err := s.q.ListPublishedPostsByStatus(ctx, storage.ListPublishedPostsByStatusParams{
 			ProjectID: pid, Status: ps, Limit: limit, Offset: offset,
 		})
 		if err != nil {
@@ -119,8 +129,12 @@ func (s *Post) List(ctx context.Context, projectID, status string, limit, offset
 		if err != nil {
 			return nil, fmt.Errorf("counting posts: %w", err)
 		}
+		result = make([]PostInfo, len(posts))
+		for i, p := range posts {
+			result[i] = *postFromListStatus(p)
+		}
 	} else {
-		posts, err = s.q.ListPublishedPosts(ctx, storage.ListPublishedPostsParams{
+		posts, err := s.q.ListPublishedPosts(ctx, storage.ListPublishedPostsParams{
 			ProjectID: pid, Limit: limit, Offset: offset,
 		})
 		if err != nil {
@@ -130,12 +144,12 @@ func (s *Post) List(ctx context.Context, projectID, status string, limit, offset
 		if err != nil {
 			return nil, fmt.Errorf("counting posts: %w", err)
 		}
+		result = make([]PostInfo, len(posts))
+		for i, p := range posts {
+			result[i] = *postFromList(p)
+		}
 	}
 
-	result := make([]PostInfo, len(posts))
-	for i, p := range posts {
-		result[i] = *storagePostToInfo(p)
-	}
 	return &PostListResult{Posts: result, Total: total}, nil
 }
 
@@ -156,10 +170,10 @@ func (s *Post) Get(ctx context.Context, projectID, postID string) (*PostInfo, er
 		return nil, ErrPostNotFound
 	}
 
-	return storagePostToInfo(post), nil
+	return postFromGet(post), nil
 }
 
-func (s *Post) Update(ctx context.Context, projectID, postID, content string, platforms []string) (*PostInfo, error) {
+func (s *Post) Update(ctx context.Context, projectID, postID, title, content, postURL, postType string, platforms []string) (*PostInfo, error) {
 	pid, err := uuid.Parse(projectID)
 	if err != nil {
 		return nil, ErrPostNotFound
@@ -167,6 +181,9 @@ func (s *Post) Update(ctx context.Context, projectID, postID, content string, pl
 	poid, err := uuid.Parse(postID)
 	if err != nil {
 		return nil, ErrPostNotFound
+	}
+	if postType == "" {
+		postType = "text"
 	}
 
 	for _, p := range platforms {
@@ -178,14 +195,15 @@ func (s *Post) Update(ctx context.Context, projectID, postID, content string, pl
 	}
 
 	post, err := s.q.UpdatePublishedPost(ctx, storage.UpdatePublishedPostParams{
-		ID: poid, ProjectID: pid, Content: content, Platforms: platforms,
+		ID: poid, ProjectID: pid, Title: title, Content: content,
+		Url: postURL, PostType: storage.PostType(postType), Platforms: platforms,
 	})
 	if err != nil {
 		// If the WHERE clause didn't match (not draft or not found), pgx returns ErrNoRows.
 		return nil, ErrPostNotDraft
 	}
 
-	return storagePostToInfo(post), nil
+	return postFromUpdate(post), nil
 }
 
 func (s *Post) Delete(ctx context.Context, projectID, postID string) error {
@@ -271,7 +289,18 @@ func (s *Post) Publish(ctx context.Context, projectID, postID string) ([]Platfor
 			continue
 		}
 
-		result, err := adapter.Publish(ctx, post.Content, conn.Credentials)
+		pubContent := integration.PublishContent{
+			Title:    post.Title,
+			Body:     post.Content,
+			URL:      post.Url,
+			PostType: string(post.PostType),
+		}
+		// Backward compat: if no structured title, use content as body.
+		if pubContent.Title == "" && pubContent.Body == "" {
+			pubContent.Body = post.Content
+		}
+
+		result, err := adapter.Publish(ctx, pubContent, conn.Credentials)
 		if err != nil {
 			log.Printf("publish: %s (%s) failed for post %s: %v", platform, conn.Method, postID, err)
 			results[i].Error = err.Error()
@@ -282,6 +311,29 @@ func (s *Post) Publish(ctx context.Context, projectID, postID string) ([]Platfor
 		results[i].Success = true
 		results[i].PostID = result.PlatformPostID
 		results[i].URL = result.URL
+
+		// Persist per-platform result.
+		now := time.Now()
+		s.q.CreatePostPlatformResult(ctx, storage.CreatePostPlatformResultParams{
+			PostID:         poid,
+			Platform:       platform,
+			PlatformPostID: result.PlatformPostID,
+			PlatformUrl:    result.URL,
+			Success:        true,
+			PublishedAt:    pgtype.Timestamptz{Time: now, Valid: true},
+		})
+	}
+
+	// Persist failed results too.
+	for _, r := range results {
+		if !r.Success && r.Error != "" {
+			s.q.CreatePostPlatformResult(ctx, storage.CreatePostPlatformResultParams{
+				PostID:       poid,
+				Platform:     r.Platform,
+				Success:      false,
+				ErrorMessage: r.Error,
+			})
+		}
 	}
 
 	// Update final status.
@@ -298,23 +350,54 @@ func (s *Post) Publish(ctx context.Context, projectID, postID string) ([]Platfor
 	return results, nil
 }
 
-func storagePostToInfo(p storage.PublishedPost) *PostInfo {
+func makePostInfo(id, projectID uuid.UUID, title, content, url string, postType storage.PostType, platforms []string, scheduledAt, publishedAt pgtype.Timestamptz, status storage.PostStatus, createdAt, updatedAt pgtype.Timestamptz) *PostInfo {
 	info := &PostInfo{
-		ID:        p.ID.String(),
-		ProjectID: p.ProjectID.String(),
-		Content:   p.Content,
-		Platforms: p.Platforms,
-		Status:    string(p.Status),
-		CreatedAt: p.CreatedAt.Time,
-		UpdatedAt: p.UpdatedAt.Time,
+		ID:        id.String(),
+		ProjectID: projectID.String(),
+		Title:     title,
+		Content:   content,
+		URL:       url,
+		PostType:  string(postType),
+		Platforms: platforms,
+		Status:    string(status),
+		CreatedAt: createdAt.Time,
+		UpdatedAt: updatedAt.Time,
 	}
-	if p.ScheduledAt.Valid {
-		t := p.ScheduledAt.Time
+	if scheduledAt.Valid {
+		t := scheduledAt.Time
 		info.ScheduledAt = &t
 	}
-	if p.PublishedAt.Valid {
-		t := p.PublishedAt.Time
+	if publishedAt.Valid {
+		t := publishedAt.Time
 		info.PublishedAt = &t
 	}
 	return info
+}
+
+func postFromCreate(p storage.CreatePublishedPostRow) *PostInfo {
+	return makePostInfo(p.ID, p.ProjectID, p.Title, p.Content, p.Url, p.PostType, p.Platforms, p.ScheduledAt, p.PublishedAt, p.Status, p.CreatedAt, p.UpdatedAt)
+}
+
+func postFromGet(p storage.GetPublishedPostByIDRow) *PostInfo {
+	return makePostInfo(p.ID, p.ProjectID, p.Title, p.Content, p.Url, p.PostType, p.Platforms, p.ScheduledAt, p.PublishedAt, p.Status, p.CreatedAt, p.UpdatedAt)
+}
+
+func postFromList(p storage.ListPublishedPostsRow) *PostInfo {
+	return makePostInfo(p.ID, p.ProjectID, p.Title, p.Content, p.Url, p.PostType, p.Platforms, p.ScheduledAt, p.PublishedAt, p.Status, p.CreatedAt, p.UpdatedAt)
+}
+
+func postFromListStatus(p storage.ListPublishedPostsByStatusRow) *PostInfo {
+	return makePostInfo(p.ID, p.ProjectID, p.Title, p.Content, p.Url, p.PostType, p.Platforms, p.ScheduledAt, p.PublishedAt, p.Status, p.CreatedAt, p.UpdatedAt)
+}
+
+func postFromUpdate(p storage.UpdatePublishedPostRow) *PostInfo {
+	return makePostInfo(p.ID, p.ProjectID, p.Title, p.Content, p.Url, p.PostType, p.Platforms, p.ScheduledAt, p.PublishedAt, p.Status, p.CreatedAt, p.UpdatedAt)
+}
+
+func postFromStatus(p storage.UpdatePublishedPostStatusRow) *PostInfo {
+	return makePostInfo(p.ID, p.ProjectID, p.Title, p.Content, p.Url, p.PostType, p.Platforms, p.ScheduledAt, p.PublishedAt, p.Status, p.CreatedAt, p.UpdatedAt)
+}
+
+func postFromPublished(p storage.SetPublishedPostPublishedRow) *PostInfo {
+	return makePostInfo(p.ID, p.ProjectID, p.Title, p.Content, p.Url, p.PostType, p.Platforms, p.ScheduledAt, p.PublishedAt, p.Status, p.CreatedAt, p.UpdatedAt)
 }

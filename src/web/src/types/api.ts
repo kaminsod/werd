@@ -109,10 +109,15 @@ export interface Connection {
   updated_at: string;
 }
 
+export type PostType = "text" | "link";
+
 export interface Post {
   id: string;
   project_id: string;
+  title: string;
   content: string;
+  url: string;
+  post_type: PostType;
   platforms: string[];
   scheduled_at: string | null;
   published_at: string | null;

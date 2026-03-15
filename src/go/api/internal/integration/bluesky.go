@@ -53,7 +53,7 @@ func (b *Bluesky) ValidateCredentials(ctx context.Context, credentials json.RawM
 	return err
 }
 
-func (b *Bluesky) Publish(ctx context.Context, content string, credentials json.RawMessage) (*PublishResult, error) {
+func (b *Bluesky) Publish(ctx context.Context, content PublishContent, credentials json.RawMessage) (*PublishResult, error) {
 	creds, err := b.parseCreds(credentials)
 	if err != nil {
 		return nil, err
@@ -64,7 +64,16 @@ func (b *Bluesky) Publish(ctx context.Context, content string, credentials json.
 		return nil, fmt.Errorf("bluesky: creating session: %w", err)
 	}
 
-	record, err := b.createPost(ctx, session, content)
+	// Bluesky uses body as post text. Append URL if it's a link post.
+	text := content.Body
+	if content.URL != "" {
+		if text != "" {
+			text += "\n"
+		}
+		text += content.URL
+	}
+
+	record, err := b.createPost(ctx, session, text)
 	if err != nil {
 		return nil, fmt.Errorf("bluesky: creating post: %w", err)
 	}

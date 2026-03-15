@@ -20,6 +20,6 @@ func (h *HN) ValidateCredentials(_ context.Context, _ json.RawMessage) error {
 }
 
 // Publish always returns an error — HN has no posting API.
-func (h *HN) Publish(_ context.Context, _ string, _ json.RawMessage) (*PublishResult, error) {
+func (h *HN) Publish(_ context.Context, _ PublishContent, _ json.RawMessage) (*PublishResult, error) {
 	return nil, fmt.Errorf("hacker news does not support publishing — monitoring only")
 }

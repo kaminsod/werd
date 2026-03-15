@@ -116,7 +116,7 @@ func TestRedditPublish_Success(t *testing.T) {
 
 	adapter := NewRedditWithHosts(authServer.URL, apiServer.URL)
 	creds := json.RawMessage(`{"client_id":"id","client_secret":"secret","username":"user","password":"pass","user_agent":"test","subreddit":"testsubreddit"}`)
-	result, err := adapter.Publish(context.Background(), "My Title\nBody content here", creds)
+	result, err := adapter.Publish(context.Background(), PublishContent{Title: "My Title", Body: "Body content here", PostType: "text"}, creds)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -160,7 +160,7 @@ func TestRedditPublish_SubmitError(t *testing.T) {
 
 	adapter := NewRedditWithHosts(authServer.URL, apiServer.URL)
 	creds := json.RawMessage(`{"client_id":"id","client_secret":"s","username":"u","password":"p","user_agent":"ua","subreddit":"nosub"}`)
-	_, err := adapter.Publish(context.Background(), "Title\nBody", creds)
+	_, err := adapter.Publish(context.Background(), PublishContent{Title: "Title", Body: "Body", PostType: "text"}, creds)
 	if err == nil {
 		t.Fatal("expected error for Reddit API error response")
 	}

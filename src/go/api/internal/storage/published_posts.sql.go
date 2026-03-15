@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const countPublishedPosts = `-- name: CountPublishedPosts :one
@@ -39,30 +40,54 @@ func (q *Queries) CountPublishedPostsByStatus(ctx context.Context, arg CountPubl
 }
 
 const createPublishedPost = `-- name: CreatePublishedPost :one
-INSERT INTO published_posts (project_id, content, platforms, status)
-VALUES ($1, $2, $3, $4)
-RETURNING id, project_id, content, platforms, scheduled_at, published_at, status, created_at, updated_at
+INSERT INTO published_posts (project_id, title, content, url, post_type, platforms, status)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+RETURNING id, project_id, title, content, url, post_type, platforms, scheduled_at, published_at, status, created_at, updated_at
 `
 
 type CreatePublishedPostParams struct {
 	ProjectID uuid.UUID  `json:"project_id"`
+	Title     string     `json:"title"`
 	Content   string     `json:"content"`
+	Url       string     `json:"url"`
+	PostType  PostType   `json:"post_type"`
 	Platforms []string   `json:"platforms"`
 	Status    PostStatus `json:"status"`
 }
 
-func (q *Queries) CreatePublishedPost(ctx context.Context, arg CreatePublishedPostParams) (PublishedPost, error) {
+type CreatePublishedPostRow struct {
+	ID          uuid.UUID          `json:"id"`
+	ProjectID   uuid.UUID          `json:"project_id"`
+	Title       string             `json:"title"`
+	Content     string             `json:"content"`
+	Url         string             `json:"url"`
+	PostType    PostType           `json:"post_type"`
+	Platforms   []string           `json:"platforms"`
+	ScheduledAt pgtype.Timestamptz `json:"scheduled_at"`
+	PublishedAt pgtype.Timestamptz `json:"published_at"`
+	Status      PostStatus         `json:"status"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) CreatePublishedPost(ctx context.Context, arg CreatePublishedPostParams) (CreatePublishedPostRow, error) {
 	row := q.db.QueryRow(ctx, createPublishedPost,
 		arg.ProjectID,
+		arg.Title,
 		arg.Content,
+		arg.Url,
+		arg.PostType,
 		arg.Platforms,
 		arg.Status,
 	)
-	var i PublishedPost
+	var i CreatePublishedPostRow
 	err := row.Scan(
 		&i.ID,
 		&i.ProjectID,
+		&i.Title,
 		&i.Content,
+		&i.Url,
+		&i.PostType,
 		&i.Platforms,
 		&i.ScheduledAt,
 		&i.PublishedAt,
@@ -89,7 +114,7 @@ func (q *Queries) DeletePublishedPost(ctx context.Context, arg DeletePublishedPo
 }
 
 const getPublishedPostByID = `-- name: GetPublishedPostByID :one
-SELECT id, project_id, content, platforms, scheduled_at, published_at, status, created_at, updated_at
+SELECT id, project_id, title, content, url, post_type, platforms, scheduled_at, published_at, status, created_at, updated_at
 FROM published_posts
 WHERE id = $1 AND project_id = $2
 `
@@ -99,13 +124,31 @@ type GetPublishedPostByIDParams struct {
 	ProjectID uuid.UUID `json:"project_id"`
 }
 
-func (q *Queries) GetPublishedPostByID(ctx context.Context, arg GetPublishedPostByIDParams) (PublishedPost, error) {
+type GetPublishedPostByIDRow struct {
+	ID          uuid.UUID          `json:"id"`
+	ProjectID   uuid.UUID          `json:"project_id"`
+	Title       string             `json:"title"`
+	Content     string             `json:"content"`
+	Url         string             `json:"url"`
+	PostType    PostType           `json:"post_type"`
+	Platforms   []string           `json:"platforms"`
+	ScheduledAt pgtype.Timestamptz `json:"scheduled_at"`
+	PublishedAt pgtype.Timestamptz `json:"published_at"`
+	Status      PostStatus         `json:"status"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) GetPublishedPostByID(ctx context.Context, arg GetPublishedPostByIDParams) (GetPublishedPostByIDRow, error) {
 	row := q.db.QueryRow(ctx, getPublishedPostByID, arg.ID, arg.ProjectID)
-	var i PublishedPost
+	var i GetPublishedPostByIDRow
 	err := row.Scan(
 		&i.ID,
 		&i.ProjectID,
+		&i.Title,
 		&i.Content,
+		&i.Url,
+		&i.PostType,
 		&i.Platforms,
 		&i.ScheduledAt,
 		&i.PublishedAt,
@@ -117,7 +160,7 @@ func (q *Queries) GetPublishedPostByID(ctx context.Context, arg GetPublishedPost
 }
 
 const listPublishedPosts = `-- name: ListPublishedPosts :many
-SELECT id, project_id, content, platforms, scheduled_at, published_at, status, created_at, updated_at
+SELECT id, project_id, title, content, url, post_type, platforms, scheduled_at, published_at, status, created_at, updated_at
 FROM published_posts
 WHERE project_id = $1
 ORDER BY created_at DESC
@@ -130,19 +173,37 @@ type ListPublishedPostsParams struct {
 	Offset    int32     `json:"offset"`
 }
 
-func (q *Queries) ListPublishedPosts(ctx context.Context, arg ListPublishedPostsParams) ([]PublishedPost, error) {
+type ListPublishedPostsRow struct {
+	ID          uuid.UUID          `json:"id"`
+	ProjectID   uuid.UUID          `json:"project_id"`
+	Title       string             `json:"title"`
+	Content     string             `json:"content"`
+	Url         string             `json:"url"`
+	PostType    PostType           `json:"post_type"`
+	Platforms   []string           `json:"platforms"`
+	ScheduledAt pgtype.Timestamptz `json:"scheduled_at"`
+	PublishedAt pgtype.Timestamptz `json:"published_at"`
+	Status      PostStatus         `json:"status"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) ListPublishedPosts(ctx context.Context, arg ListPublishedPostsParams) ([]ListPublishedPostsRow, error) {
 	rows, err := q.db.Query(ctx, listPublishedPosts, arg.ProjectID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []PublishedPost{}
+	items := []ListPublishedPostsRow{}
 	for rows.Next() {
-		var i PublishedPost
+		var i ListPublishedPostsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.ProjectID,
+			&i.Title,
 			&i.Content,
+			&i.Url,
+			&i.PostType,
 			&i.Platforms,
 			&i.ScheduledAt,
 			&i.PublishedAt,
@@ -161,7 +222,7 @@ func (q *Queries) ListPublishedPosts(ctx context.Context, arg ListPublishedPosts
 }
 
 const listPublishedPostsByStatus = `-- name: ListPublishedPostsByStatus :many
-SELECT id, project_id, content, platforms, scheduled_at, published_at, status, created_at, updated_at
+SELECT id, project_id, title, content, url, post_type, platforms, scheduled_at, published_at, status, created_at, updated_at
 FROM published_posts
 WHERE project_id = $1 AND status = $2
 ORDER BY created_at DESC
@@ -175,7 +236,22 @@ type ListPublishedPostsByStatusParams struct {
 	Offset    int32      `json:"offset"`
 }
 
-func (q *Queries) ListPublishedPostsByStatus(ctx context.Context, arg ListPublishedPostsByStatusParams) ([]PublishedPost, error) {
+type ListPublishedPostsByStatusRow struct {
+	ID          uuid.UUID          `json:"id"`
+	ProjectID   uuid.UUID          `json:"project_id"`
+	Title       string             `json:"title"`
+	Content     string             `json:"content"`
+	Url         string             `json:"url"`
+	PostType    PostType           `json:"post_type"`
+	Platforms   []string           `json:"platforms"`
+	ScheduledAt pgtype.Timestamptz `json:"scheduled_at"`
+	PublishedAt pgtype.Timestamptz `json:"published_at"`
+	Status      PostStatus         `json:"status"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) ListPublishedPostsByStatus(ctx context.Context, arg ListPublishedPostsByStatusParams) ([]ListPublishedPostsByStatusRow, error) {
 	rows, err := q.db.Query(ctx, listPublishedPostsByStatus,
 		arg.ProjectID,
 		arg.Status,
@@ -186,13 +262,16 @@ func (q *Queries) ListPublishedPostsByStatus(ctx context.Context, arg ListPublis
 		return nil, err
 	}
 	defer rows.Close()
-	items := []PublishedPost{}
+	items := []ListPublishedPostsByStatusRow{}
 	for rows.Next() {
-		var i PublishedPost
+		var i ListPublishedPostsByStatusRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.ProjectID,
+			&i.Title,
 			&i.Content,
+			&i.Url,
+			&i.PostType,
 			&i.Platforms,
 			&i.ScheduledAt,
 			&i.PublishedAt,
@@ -214,7 +293,7 @@ const setPublishedPostPublished = `-- name: SetPublishedPostPublished :one
 UPDATE published_posts
 SET status = 'published', published_at = now()
 WHERE id = $1 AND project_id = $2
-RETURNING id, project_id, content, platforms, scheduled_at, published_at, status, created_at, updated_at
+RETURNING id, project_id, title, content, url, post_type, platforms, scheduled_at, published_at, status, created_at, updated_at
 `
 
 type SetPublishedPostPublishedParams struct {
@@ -222,13 +301,31 @@ type SetPublishedPostPublishedParams struct {
 	ProjectID uuid.UUID `json:"project_id"`
 }
 
-func (q *Queries) SetPublishedPostPublished(ctx context.Context, arg SetPublishedPostPublishedParams) (PublishedPost, error) {
+type SetPublishedPostPublishedRow struct {
+	ID          uuid.UUID          `json:"id"`
+	ProjectID   uuid.UUID          `json:"project_id"`
+	Title       string             `json:"title"`
+	Content     string             `json:"content"`
+	Url         string             `json:"url"`
+	PostType    PostType           `json:"post_type"`
+	Platforms   []string           `json:"platforms"`
+	ScheduledAt pgtype.Timestamptz `json:"scheduled_at"`
+	PublishedAt pgtype.Timestamptz `json:"published_at"`
+	Status      PostStatus         `json:"status"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) SetPublishedPostPublished(ctx context.Context, arg SetPublishedPostPublishedParams) (SetPublishedPostPublishedRow, error) {
 	row := q.db.QueryRow(ctx, setPublishedPostPublished, arg.ID, arg.ProjectID)
-	var i PublishedPost
+	var i SetPublishedPostPublishedRow
 	err := row.Scan(
 		&i.ID,
 		&i.ProjectID,
+		&i.Title,
 		&i.Content,
+		&i.Url,
+		&i.PostType,
 		&i.Platforms,
 		&i.ScheduledAt,
 		&i.PublishedAt,
@@ -241,30 +338,54 @@ func (q *Queries) SetPublishedPostPublished(ctx context.Context, arg SetPublishe
 
 const updatePublishedPost = `-- name: UpdatePublishedPost :one
 UPDATE published_posts
-SET content = $3, platforms = $4
+SET title = $3, content = $4, url = $5, post_type = $6, platforms = $7
 WHERE id = $1 AND project_id = $2 AND status = 'draft'
-RETURNING id, project_id, content, platforms, scheduled_at, published_at, status, created_at, updated_at
+RETURNING id, project_id, title, content, url, post_type, platforms, scheduled_at, published_at, status, created_at, updated_at
 `
 
 type UpdatePublishedPostParams struct {
 	ID        uuid.UUID `json:"id"`
 	ProjectID uuid.UUID `json:"project_id"`
+	Title     string    `json:"title"`
 	Content   string    `json:"content"`
+	Url       string    `json:"url"`
+	PostType  PostType  `json:"post_type"`
 	Platforms []string  `json:"platforms"`
 }
 
-func (q *Queries) UpdatePublishedPost(ctx context.Context, arg UpdatePublishedPostParams) (PublishedPost, error) {
+type UpdatePublishedPostRow struct {
+	ID          uuid.UUID          `json:"id"`
+	ProjectID   uuid.UUID          `json:"project_id"`
+	Title       string             `json:"title"`
+	Content     string             `json:"content"`
+	Url         string             `json:"url"`
+	PostType    PostType           `json:"post_type"`
+	Platforms   []string           `json:"platforms"`
+	ScheduledAt pgtype.Timestamptz `json:"scheduled_at"`
+	PublishedAt pgtype.Timestamptz `json:"published_at"`
+	Status      PostStatus         `json:"status"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) UpdatePublishedPost(ctx context.Context, arg UpdatePublishedPostParams) (UpdatePublishedPostRow, error) {
 	row := q.db.QueryRow(ctx, updatePublishedPost,
 		arg.ID,
 		arg.ProjectID,
+		arg.Title,
 		arg.Content,
+		arg.Url,
+		arg.PostType,
 		arg.Platforms,
 	)
-	var i PublishedPost
+	var i UpdatePublishedPostRow
 	err := row.Scan(
 		&i.ID,
 		&i.ProjectID,
+		&i.Title,
 		&i.Content,
+		&i.Url,
+		&i.PostType,
 		&i.Platforms,
 		&i.ScheduledAt,
 		&i.PublishedAt,
@@ -279,7 +400,7 @@ const updatePublishedPostStatus = `-- name: UpdatePublishedPostStatus :one
 UPDATE published_posts
 SET status = $3
 WHERE id = $1 AND project_id = $2
-RETURNING id, project_id, content, platforms, scheduled_at, published_at, status, created_at, updated_at
+RETURNING id, project_id, title, content, url, post_type, platforms, scheduled_at, published_at, status, created_at, updated_at
 `
 
 type UpdatePublishedPostStatusParams struct {
@@ -288,13 +409,31 @@ type UpdatePublishedPostStatusParams struct {
 	Status    PostStatus `json:"status"`
 }
 
-func (q *Queries) UpdatePublishedPostStatus(ctx context.Context, arg UpdatePublishedPostStatusParams) (PublishedPost, error) {
+type UpdatePublishedPostStatusRow struct {
+	ID          uuid.UUID          `json:"id"`
+	ProjectID   uuid.UUID          `json:"project_id"`
+	Title       string             `json:"title"`
+	Content     string             `json:"content"`
+	Url         string             `json:"url"`
+	PostType    PostType           `json:"post_type"`
+	Platforms   []string           `json:"platforms"`
+	ScheduledAt pgtype.Timestamptz `json:"scheduled_at"`
+	PublishedAt pgtype.Timestamptz `json:"published_at"`
+	Status      PostStatus         `json:"status"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) UpdatePublishedPostStatus(ctx context.Context, arg UpdatePublishedPostStatusParams) (UpdatePublishedPostStatusRow, error) {
 	row := q.db.QueryRow(ctx, updatePublishedPostStatus, arg.ID, arg.ProjectID, arg.Status)
-	var i PublishedPost
+	var i UpdatePublishedPostStatusRow
 	err := row.Scan(
 		&i.ID,
 		&i.ProjectID,
+		&i.Title,
 		&i.Content,
+		&i.Url,
+		&i.PostType,
 		&i.Platforms,
 		&i.ScheduledAt,
 		&i.PublishedAt,

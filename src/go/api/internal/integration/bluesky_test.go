@@ -91,7 +91,7 @@ func TestBlueskyPublish_Success(t *testing.T) {
 
 	b := NewBluesky(server.URL)
 	creds := json.RawMessage(`{"identifier":"user.bsky.social","app_password":"xxxx"}`)
-	result, err := b.Publish(context.Background(), "Hello world", creds)
+	result, err := b.Publish(context.Background(), PublishContent{Body: "Hello world"}, creds)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

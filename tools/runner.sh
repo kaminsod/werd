@@ -231,16 +231,16 @@ cmd_start() {
     pg_elapsed=$((pg_elapsed + 2))
   done
 
-  # Apply database migrations.
+  # Apply all database migrations (in order).
   echo "Applying database migrations..."
-  local migration_file="$REPO_ROOT/src/go/api/migrations/001_initial_schema.sql"
-  if [ -f "$migration_file" ]; then
+  for migration_file in "$REPO_ROOT"/src/go/api/migrations/*.sql; do
+    [ -f "$migration_file" ] || continue
     sed -n '/^-- +goose Up$/,/^-- +goose Down$/p' "$migration_file" \
-      | grep -v '^-- +goose' \
+      | sed '/^-- +goose/d' \
       | compose_cmd exec -T postgres psql -U werd -d werd -f - 2>&1 \
-      | grep -v "already exists" | grep -v "^$" || true
-    echo "Migrations applied."
-  fi
+      | sed '/already exists/d; /^$/d' || true
+  done
+  echo "Migrations applied."
 
   # Now start all remaining services.
   echo ""

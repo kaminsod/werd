@@ -137,6 +137,8 @@ func (h *PlatformHandler) CreateConnection(w http.ResponseWriter, r *http.Reques
 	conn, err := h.platformSvc.CreateConnection(r.Context(), projectID, req.Platform, req.Method, req.Credentials, enabled)
 	if err != nil {
 		switch {
+		case errors.Is(err, service.ErrBrowserNotConfigured):
+			writeJSON(w, http.StatusBadRequest, messageResponse{Message: err.Error()})
 		case errors.Is(err, service.ErrUnsupportedPlatform):
 			writeJSON(w, http.StatusBadRequest, messageResponse{Message: "unsupported platform"})
 		default:

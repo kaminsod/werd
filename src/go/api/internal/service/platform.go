@@ -14,10 +14,11 @@ import (
 )
 
 var (
-	ErrConnectionNotFound  = errors.New("platform connection not found")
-	ErrUnsupportedPlatform = errors.New("unsupported platform")
-	ErrConnectionDisabled  = errors.New("platform connection is disabled")
-	ErrInvalidMethod       = errors.New("method must be 'api' or 'browser'")
+	ErrConnectionNotFound    = errors.New("platform connection not found")
+	ErrUnsupportedPlatform   = errors.New("unsupported platform")
+	ErrBrowserNotConfigured  = errors.New("browser method is not available — the browser automation service is not configured")
+	ErrConnectionDisabled    = errors.New("platform connection is disabled")
+	ErrInvalidMethod         = errors.New("method must be 'api' or 'browser'")
 )
 
 // ConnectionInfo is the service-layer representation. Credentials are always redacted.
@@ -72,6 +73,12 @@ func (s *Platform) CreateConnection(ctx context.Context, projectID, platform, me
 
 	adapter, err := s.registry.Get(registryKey(platform, method))
 	if err != nil {
+		// Distinguish "unknown platform" from "browser not configured".
+		if method == "browser" {
+			if _, apiErr := s.registry.Get(registryKey(platform, "api")); apiErr == nil {
+				return nil, ErrBrowserNotConfigured
+			}
+		}
 		return nil, ErrUnsupportedPlatform
 	}
 
@@ -145,6 +152,11 @@ func (s *Platform) UpdateConnection(ctx context.Context, projectID, connID, plat
 
 	adapter, err := s.registry.Get(registryKey(platform, method))
 	if err != nil {
+		if method == "browser" {
+			if _, apiErr := s.registry.Get(registryKey(platform, "api")); apiErr == nil {
+				return nil, ErrBrowserNotConfigured
+			}
+		}
 		return nil, ErrUnsupportedPlatform
 	}
 

@@ -7,13 +7,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python deps.
-COPY pyproject.toml .
+# Copy everything, then install (needs source for package discovery).
+COPY . .
 RUN pip install --no-cache-dir . && \
     playwright install --with-deps chromium
-
-# Copy application.
-COPY src/ src/
 
 EXPOSE 8091
 

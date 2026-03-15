@@ -185,26 +185,26 @@ services:
       retries: 3
       start_period: 30s
 
-  # ── Browser Automation (optional, enables browser-based platform interactions) ──
+  # ── Browser Automation (enables browser-based platform interactions) ──
 
-  # browser-service:
-  #   build:
-  #     context: ../../browser-service
-  #     dockerfile: Dockerfile
-  #   restart: unless-stopped
-  #   environment:
-  #     INTERNAL_API_KEY: ${WERD_INTERNAL_API_KEY}
-  #     BROWSER_HEADLESS: "true"
-  #     BROWSER_TIMEOUT_SECS: "30"
-  #     BROWSER_PROXY: ${BROWSER_PROXY:-}
-  #   networks:
-  #     - werd-net
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "curl -sf http://localhost:8091/healthz"]
-  #     interval: 15s
-  #     timeout: 10s
-  #     retries: 3
-  #     start_period: 30s
+  browser-service:
+    build:
+      context: ../../browser-service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      INTERNAL_API_KEY: ${WERD_INTERNAL_API_KEY}
+      BROWSER_HEADLESS: "true"
+      BROWSER_TIMEOUT_SECS: "30"
+      BROWSER_PROXY: ${BROWSER_PROXY:-}
+    networks:
+      - werd-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8091/healthz"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   # ── Custom Monitors (activate by setting env vars) ──
 

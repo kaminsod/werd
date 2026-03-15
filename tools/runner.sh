@@ -470,6 +470,19 @@ cmd_containers() {
       compose_cmd logs --tail=50 -f "$CONTAINER_NAME"
       ;;
 
+    rebuild)
+      require_name "rebuild"
+      validate_service_name "$CONTAINER_NAME"
+      echo "Rebuilding and redeploying $CONTAINER_NAME..."
+      if compose_cmd up -d --build "$CONTAINER_NAME" 2>&1; then
+        echo "$CONTAINER_NAME rebuilt and redeployed."
+      else
+        echo "Error: Failed to rebuild $CONTAINER_NAME."
+        echo "Check logs: $0 containers --name=$CONTAINER_NAME logs"
+        exit 1
+      fi
+      ;;
+
     *)
       echo "Error: Unknown containers action '$action'."
       echo ""
@@ -479,7 +492,8 @@ cmd_containers() {
       echo "  $0 containers --name=<service> status       — status of one container"
       echo "  $0 containers --name=<service> start        — start a container"
       echo "  $0 containers --name=<service> stop         — stop a container"
-      echo "  $0 containers --name=<service> restart      — restart a container"
+      echo "  $0 containers --name=<service> restart      — restart a container (no rebuild)"
+      echo "  $0 containers --name=<service> rebuild      — rebuild image + redeploy"
       echo "  $0 containers --name=<service> logs         — tail container logs"
       exit 1
       ;;

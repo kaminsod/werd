@@ -132,7 +132,7 @@ export default function ConnectionsPage() {
             </p>
           )}
 
-          <div className="flex gap-3">
+          <div className="flex items-end gap-3">
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-600">Platform</label>
               <select
@@ -147,7 +147,7 @@ export default function ConnectionsPage() {
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-600">Method</label>
-              <div className="flex gap-3">
+              <div className="flex h-[38px] items-center gap-3">
                 <label className="flex items-center gap-1.5">
                   <input type="radio" name="method" value="api" checked={formMethod === "api"} onChange={() => setFormMethod("api")} />
                   <span className="text-sm">API</span>
@@ -158,10 +158,13 @@ export default function ConnectionsPage() {
                 </label>
               </div>
             </div>
-            <label className="flex items-center gap-2 self-end">
-              <input type="checkbox" checked={formEnabled} onChange={(e) => setFormEnabled(e.target.checked)} />
-              <span className="text-sm">Enabled</span>
-            </label>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-600">Status</label>
+              <label className="flex h-[38px] items-center gap-2">
+                <input type="checkbox" checked={formEnabled} onChange={(e) => setFormEnabled(e.target.checked)} />
+                <span className="text-sm">Enabled</span>
+              </label>
+            </div>
           </div>
 
           {METHOD_GUIDANCE[formPlatform]?.[formMethod] && (

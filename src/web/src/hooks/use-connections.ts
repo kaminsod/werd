@@ -13,7 +13,7 @@ export function useConnections(projectId: string) {
 export function useCreateConnection(projectId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: { platform: string; credentials: unknown; enabled?: boolean }) =>
+    mutationFn: (data: { platform: string; method: string; credentials: unknown; enabled?: boolean }) =>
       apiMutate<Connection>(`/projects/${projectId}/connections`, "POST", data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["projects", projectId, "connections"] }),
   });
@@ -22,7 +22,7 @@ export function useCreateConnection(projectId: string) {
 export function useUpdateConnection(projectId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ connId, ...data }: { connId: string; platform: string; credentials: unknown; enabled?: boolean }) =>
+    mutationFn: ({ connId, ...data }: { connId: string; platform: string; method: string; credentials: unknown; enabled?: boolean }) =>
       apiMutate<Connection>(`/projects/${projectId}/connections/${connId}`, "PUT", data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["projects", projectId, "connections"] }),
   });

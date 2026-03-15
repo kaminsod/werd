@@ -11,7 +11,8 @@ type Config struct {
 	RedisURL    string
 	JWTSecret      string
 	InternalAPIKey string
-	NtfyURL        string
+	NtfyURL           string
+	BrowserServiceURL string // optional: enables browser adapters
 
 	// Optional: seed an admin user on first startup.
 	AdminEmail    string
@@ -25,8 +26,9 @@ func Load() (*Config, error) {
 		RedisURL:      os.Getenv("REDIS_URL"),
 		JWTSecret:      os.Getenv("WERD_JWT_SECRET"),
 		InternalAPIKey: os.Getenv("WERD_INTERNAL_API_KEY"),
-		NtfyURL:        envOr("WERD_NTFY_URL", "http://ntfy:80"),
-		AdminEmail:     os.Getenv("WERD_ADMIN_EMAIL"),
+		NtfyURL:           envOr("WERD_NTFY_URL", "http://ntfy:80"),
+		BrowserServiceURL: os.Getenv("BROWSER_SERVICE_URL"),
+		AdminEmail:        os.Getenv("WERD_ADMIN_EMAIL"),
 		AdminPassword: os.Getenv("WERD_ADMIN_PASSWORD"),
 	}
 

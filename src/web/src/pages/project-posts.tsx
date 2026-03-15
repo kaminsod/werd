@@ -39,9 +39,13 @@ export default function PostsPage() {
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
   const [publishResults, setPublishResults] = useState<PlatformPublishResult[] | null>(null);
 
-  // Only show platforms that support publishing (exclude monitoring-only like HN).
-  const PUBLISHABLE = new Set(["bluesky", "reddit"]);
-  const availablePlatforms = connections?.map((c) => c.platform).filter((v, i, a) => a.indexOf(v) === i && PUBLISHABLE.has(v)) ?? [];
+  // Show platforms that can publish — API-publishable or browser-publishable connections.
+  const API_PUB = new Set(["bluesky", "reddit"]);
+  const BROWSER_PUB = new Set(["bluesky", "reddit", "hn"]);
+  const availablePlatforms = connections
+    ?.filter((c) => c.enabled && ((c.method === "api" && API_PUB.has(c.platform)) || (c.method === "browser" && BROWSER_PUB.has(c.platform))))
+    .map((c) => c.platform)
+    .filter((v, i, a) => a.indexOf(v) === i) ?? [];
 
   function resetForm() {
     setContent("");

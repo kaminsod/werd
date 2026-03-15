@@ -516,6 +516,7 @@ type PlatformConnection struct {
 	Enabled     bool               `json:"enabled"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	Method      string             `json:"method"`
 }
 
 type Project struct {

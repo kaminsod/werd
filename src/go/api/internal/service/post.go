@@ -67,9 +67,11 @@ func (s *Post) Create(ctx context.Context, projectID, content string, platforms 
 		return nil, ErrNoPlatforms
 	}
 
-	// Validate all platforms have registered adapters.
+	// Validate all platforms have at least one registered adapter (api or browser).
 	for _, p := range platforms {
-		if _, err := s.registry.Get(p); err != nil {
+		_, apiErr := s.registry.Get(p + ":api")
+		_, browserErr := s.registry.Get(p + ":browser")
+		if apiErr != nil && browserErr != nil {
 			return nil, fmt.Errorf("%w: %s", ErrUnsupportedPlatform, p)
 		}
 	}
@@ -168,7 +170,9 @@ func (s *Post) Update(ctx context.Context, projectID, postID, content string, pl
 	}
 
 	for _, p := range platforms {
-		if _, err := s.registry.Get(p); err != nil {
+		_, apiErr := s.registry.Get(p + ":api")
+		_, browserErr := s.registry.Get(p + ":browser")
+		if apiErr != nil && browserErr != nil {
 			return nil, fmt.Errorf("%w: %s", ErrUnsupportedPlatform, p)
 		}
 	}
@@ -250,23 +254,26 @@ func (s *Post) Publish(ctx context.Context, projectID, postID string) ([]Platfor
 	for i, platform := range post.Platforms {
 		results[i] = PlatformPublishResult{Platform: platform}
 
-		adapter, err := s.registry.Get(platform)
-		if err != nil {
-			results[i].Error = fmt.Sprintf("unsupported platform: %s", platform)
-			anyFailed = true
-			continue
-		}
-
-		creds, err := s.platformSvc.GetCredentials(ctx, projectID, platform)
+		// Look up the enabled connection (returns method + credentials).
+		conn, err := s.platformSvc.GetConnectionForPublish(ctx, projectID, platform)
 		if err != nil {
 			results[i].Error = fmt.Sprintf("no enabled connection for %s", platform)
 			anyFailed = true
 			continue
 		}
 
-		result, err := adapter.Publish(ctx, post.Content, creds)
+		// Use platform:method as the registry key.
+		adapterKey := conn.Platform + ":" + conn.Method
+		adapter, err := s.registry.Get(adapterKey)
 		if err != nil {
-			log.Printf("publish: %s failed for post %s: %v", platform, postID, err)
+			results[i].Error = fmt.Sprintf("unsupported platform/method: %s", adapterKey)
+			anyFailed = true
+			continue
+		}
+
+		result, err := adapter.Publish(ctx, post.Content, conn.Credentials)
+		if err != nil {
+			log.Printf("publish: %s (%s) failed for post %s: %v", platform, conn.Method, postID, err)
 			results[i].Error = err.Error()
 			anyFailed = true
 			continue

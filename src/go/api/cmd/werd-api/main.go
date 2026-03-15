@@ -58,11 +58,19 @@ func main() {
 	keywordService := service.NewKeyword(queries)
 	notificationService := service.NewNotification(queries, cfg.NtfyURL)
 
-	// Platform integration.
+	// Platform integration: API adapters.
 	adapterRegistry := integration.NewRegistry()
-	adapterRegistry.Register("bluesky", integration.NewBluesky(""))
-	adapterRegistry.Register("reddit", integration.NewReddit())
-	adapterRegistry.Register("hn", integration.NewHN())
+	adapterRegistry.Register("bluesky:api", integration.NewBluesky(""))
+	adapterRegistry.Register("reddit:api", integration.NewReddit())
+	adapterRegistry.Register("hn:api", integration.NewHN())
+
+	// Browser adapters (only if browser service is configured).
+	if cfg.BrowserServiceURL != "" {
+		log.Printf("browser service enabled: %s", cfg.BrowserServiceURL)
+		adapterRegistry.Register("bluesky:browser", integration.NewBrowserAdapter(cfg.BrowserServiceURL, "bluesky", cfg.InternalAPIKey))
+		adapterRegistry.Register("reddit:browser", integration.NewBrowserAdapter(cfg.BrowserServiceURL, "reddit", cfg.InternalAPIKey))
+		adapterRegistry.Register("hn:browser", integration.NewBrowserAdapter(cfg.BrowserServiceURL, "hn", cfg.InternalAPIKey))
+	}
 
 	monitorSourceService := service.NewMonitorSource(queries)
 	platformService := service.NewPlatform(queries, adapterRegistry)

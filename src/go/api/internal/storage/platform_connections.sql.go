@@ -9,33 +9,48 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createPlatformConnection = `-- name: CreatePlatformConnection :one
-INSERT INTO platform_connections (project_id, platform, credentials, enabled)
-VALUES ($1, $2, $3, $4)
-RETURNING id, project_id, platform, credentials, enabled, created_at, updated_at
+INSERT INTO platform_connections (project_id, platform, method, credentials, enabled)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, project_id, platform, method, credentials, enabled, created_at, updated_at
 `
 
 type CreatePlatformConnectionParams struct {
 	ProjectID   uuid.UUID `json:"project_id"`
 	Platform    string    `json:"platform"`
+	Method      string    `json:"method"`
 	Credentials []byte    `json:"credentials"`
 	Enabled     bool      `json:"enabled"`
 }
 
-func (q *Queries) CreatePlatformConnection(ctx context.Context, arg CreatePlatformConnectionParams) (PlatformConnection, error) {
+type CreatePlatformConnectionRow struct {
+	ID          uuid.UUID          `json:"id"`
+	ProjectID   uuid.UUID          `json:"project_id"`
+	Platform    string             `json:"platform"`
+	Method      string             `json:"method"`
+	Credentials []byte             `json:"credentials"`
+	Enabled     bool               `json:"enabled"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) CreatePlatformConnection(ctx context.Context, arg CreatePlatformConnectionParams) (CreatePlatformConnectionRow, error) {
 	row := q.db.QueryRow(ctx, createPlatformConnection,
 		arg.ProjectID,
 		arg.Platform,
+		arg.Method,
 		arg.Credentials,
 		arg.Enabled,
 	)
-	var i PlatformConnection
+	var i CreatePlatformConnectionRow
 	err := row.Scan(
 		&i.ID,
 		&i.ProjectID,
 		&i.Platform,
+		&i.Method,
 		&i.Credentials,
 		&i.Enabled,
 		&i.CreatedAt,
@@ -59,8 +74,87 @@ func (q *Queries) DeletePlatformConnection(ctx context.Context, arg DeletePlatfo
 	return err
 }
 
+const getEnabledConnection = `-- name: GetEnabledConnection :one
+SELECT id, project_id, platform, method, credentials, enabled, created_at, updated_at
+FROM platform_connections
+WHERE project_id = $1 AND platform = $2 AND enabled = true
+ORDER BY CASE method WHEN 'api' THEN 0 ELSE 1 END
+LIMIT 1
+`
+
+type GetEnabledConnectionParams struct {
+	ProjectID uuid.UUID `json:"project_id"`
+	Platform  string    `json:"platform"`
+}
+
+type GetEnabledConnectionRow struct {
+	ID          uuid.UUID          `json:"id"`
+	ProjectID   uuid.UUID          `json:"project_id"`
+	Platform    string             `json:"platform"`
+	Method      string             `json:"method"`
+	Credentials []byte             `json:"credentials"`
+	Enabled     bool               `json:"enabled"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) GetEnabledConnection(ctx context.Context, arg GetEnabledConnectionParams) (GetEnabledConnectionRow, error) {
+	row := q.db.QueryRow(ctx, getEnabledConnection, arg.ProjectID, arg.Platform)
+	var i GetEnabledConnectionRow
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.Platform,
+		&i.Method,
+		&i.Credentials,
+		&i.Enabled,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getEnabledConnectionByMethod = `-- name: GetEnabledConnectionByMethod :one
+SELECT id, project_id, platform, method, credentials, enabled, created_at, updated_at
+FROM platform_connections
+WHERE project_id = $1 AND platform = $2 AND method = $3 AND enabled = true
+`
+
+type GetEnabledConnectionByMethodParams struct {
+	ProjectID uuid.UUID `json:"project_id"`
+	Platform  string    `json:"platform"`
+	Method    string    `json:"method"`
+}
+
+type GetEnabledConnectionByMethodRow struct {
+	ID          uuid.UUID          `json:"id"`
+	ProjectID   uuid.UUID          `json:"project_id"`
+	Platform    string             `json:"platform"`
+	Method      string             `json:"method"`
+	Credentials []byte             `json:"credentials"`
+	Enabled     bool               `json:"enabled"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) GetEnabledConnectionByMethod(ctx context.Context, arg GetEnabledConnectionByMethodParams) (GetEnabledConnectionByMethodRow, error) {
+	row := q.db.QueryRow(ctx, getEnabledConnectionByMethod, arg.ProjectID, arg.Platform, arg.Method)
+	var i GetEnabledConnectionByMethodRow
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.Platform,
+		&i.Method,
+		&i.Credentials,
+		&i.Enabled,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getPlatformConnectionByID = `-- name: GetPlatformConnectionByID :one
-SELECT id, project_id, platform, credentials, enabled, created_at, updated_at
+SELECT id, project_id, platform, method, credentials, enabled, created_at, updated_at
 FROM platform_connections
 WHERE id = $1 AND project_id = $2
 `
@@ -70,39 +164,25 @@ type GetPlatformConnectionByIDParams struct {
 	ProjectID uuid.UUID `json:"project_id"`
 }
 
-func (q *Queries) GetPlatformConnectionByID(ctx context.Context, arg GetPlatformConnectionByIDParams) (PlatformConnection, error) {
+type GetPlatformConnectionByIDRow struct {
+	ID          uuid.UUID          `json:"id"`
+	ProjectID   uuid.UUID          `json:"project_id"`
+	Platform    string             `json:"platform"`
+	Method      string             `json:"method"`
+	Credentials []byte             `json:"credentials"`
+	Enabled     bool               `json:"enabled"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) GetPlatformConnectionByID(ctx context.Context, arg GetPlatformConnectionByIDParams) (GetPlatformConnectionByIDRow, error) {
 	row := q.db.QueryRow(ctx, getPlatformConnectionByID, arg.ID, arg.ProjectID)
-	var i PlatformConnection
+	var i GetPlatformConnectionByIDRow
 	err := row.Scan(
 		&i.ID,
 		&i.ProjectID,
 		&i.Platform,
-		&i.Credentials,
-		&i.Enabled,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const getPlatformConnectionByPlatform = `-- name: GetPlatformConnectionByPlatform :one
-SELECT id, project_id, platform, credentials, enabled, created_at, updated_at
-FROM platform_connections
-WHERE project_id = $1 AND platform = $2 AND enabled = true
-`
-
-type GetPlatformConnectionByPlatformParams struct {
-	ProjectID uuid.UUID `json:"project_id"`
-	Platform  string    `json:"platform"`
-}
-
-func (q *Queries) GetPlatformConnectionByPlatform(ctx context.Context, arg GetPlatformConnectionByPlatformParams) (PlatformConnection, error) {
-	row := q.db.QueryRow(ctx, getPlatformConnectionByPlatform, arg.ProjectID, arg.Platform)
-	var i PlatformConnection
-	err := row.Scan(
-		&i.ID,
-		&i.ProjectID,
-		&i.Platform,
+		&i.Method,
 		&i.Credentials,
 		&i.Enabled,
 		&i.CreatedAt,
@@ -112,25 +192,37 @@ func (q *Queries) GetPlatformConnectionByPlatform(ctx context.Context, arg GetPl
 }
 
 const listPlatformConnections = `-- name: ListPlatformConnections :many
-SELECT id, project_id, platform, credentials, enabled, created_at, updated_at
+SELECT id, project_id, platform, method, credentials, enabled, created_at, updated_at
 FROM platform_connections
 WHERE project_id = $1
-ORDER BY created_at
+ORDER BY platform, method, created_at
 `
 
-func (q *Queries) ListPlatformConnections(ctx context.Context, projectID uuid.UUID) ([]PlatformConnection, error) {
+type ListPlatformConnectionsRow struct {
+	ID          uuid.UUID          `json:"id"`
+	ProjectID   uuid.UUID          `json:"project_id"`
+	Platform    string             `json:"platform"`
+	Method      string             `json:"method"`
+	Credentials []byte             `json:"credentials"`
+	Enabled     bool               `json:"enabled"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) ListPlatformConnections(ctx context.Context, projectID uuid.UUID) ([]ListPlatformConnectionsRow, error) {
 	rows, err := q.db.Query(ctx, listPlatformConnections, projectID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []PlatformConnection{}
+	items := []ListPlatformConnectionsRow{}
 	for rows.Next() {
-		var i PlatformConnection
+		var i ListPlatformConnectionsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.ProjectID,
 			&i.Platform,
+			&i.Method,
 			&i.Credentials,
 			&i.Enabled,
 			&i.CreatedAt,
@@ -148,32 +240,46 @@ func (q *Queries) ListPlatformConnections(ctx context.Context, projectID uuid.UU
 
 const updatePlatformConnection = `-- name: UpdatePlatformConnection :one
 UPDATE platform_connections
-SET platform = $3, credentials = $4, enabled = $5
+SET platform = $3, method = $4, credentials = $5, enabled = $6
 WHERE id = $1 AND project_id = $2
-RETURNING id, project_id, platform, credentials, enabled, created_at, updated_at
+RETURNING id, project_id, platform, method, credentials, enabled, created_at, updated_at
 `
 
 type UpdatePlatformConnectionParams struct {
 	ID          uuid.UUID `json:"id"`
 	ProjectID   uuid.UUID `json:"project_id"`
 	Platform    string    `json:"platform"`
+	Method      string    `json:"method"`
 	Credentials []byte    `json:"credentials"`
 	Enabled     bool      `json:"enabled"`
 }
 
-func (q *Queries) UpdatePlatformConnection(ctx context.Context, arg UpdatePlatformConnectionParams) (PlatformConnection, error) {
+type UpdatePlatformConnectionRow struct {
+	ID          uuid.UUID          `json:"id"`
+	ProjectID   uuid.UUID          `json:"project_id"`
+	Platform    string             `json:"platform"`
+	Method      string             `json:"method"`
+	Credentials []byte             `json:"credentials"`
+	Enabled     bool               `json:"enabled"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) UpdatePlatformConnection(ctx context.Context, arg UpdatePlatformConnectionParams) (UpdatePlatformConnectionRow, error) {
 	row := q.db.QueryRow(ctx, updatePlatformConnection,
 		arg.ID,
 		arg.ProjectID,
 		arg.Platform,
+		arg.Method,
 		arg.Credentials,
 		arg.Enabled,
 	)
-	var i PlatformConnection
+	var i UpdatePlatformConnectionRow
 	err := row.Scan(
 		&i.ID,
 		&i.ProjectID,
 		&i.Platform,
+		&i.Method,
 		&i.Credentials,
 		&i.Enabled,
 		&i.CreatedAt,

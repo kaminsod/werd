@@ -97,10 +97,13 @@ export interface Source {
   updated_at: string;
 }
 
+export type ConnectionMethod = "api" | "browser";
+
 export interface Connection {
   id: string;
   project_id: string;
   platform: string;
+  method: ConnectionMethod;
   enabled: boolean;
   created_at: string;
   updated_at: string;

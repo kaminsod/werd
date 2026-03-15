@@ -3,7 +3,7 @@ import { useParams } from "react-router";
 import { useConnections, useCreateConnection, useUpdateConnection, useDeleteConnection } from "@/hooks/use-connections";
 import InfoIcon from "@/components/info-icon";
 import { platformCredentials as credsHelp } from "@/lib/help-content";
-import type { Connection } from "@/types/api";
+import type { Connection, ConnectionMethod } from "@/types/api";
 
 const PLATFORMS = ["bluesky", "reddit", "hn"];
 
@@ -13,14 +13,38 @@ const PLATFORM_LABELS: Record<string, string> = {
   hn: "Hacker News",
 };
 
-const CREDENTIAL_HINTS: Record<string, string> = {
-  bluesky: '{"identifier": "user.bsky.social", "app_password": "xxxx-xxxx-xxxx-xxxx"}',
-  reddit: '{"client_id": "...", "client_secret": "...", "username": "...", "password": "...", "user_agent": "werd/1.0 by u/you", "subreddit": "test"}',
-  hn: '{}',
+const CREDENTIAL_HINTS: Record<string, Record<string, string>> = {
+  bluesky: {
+    api: '{"identifier": "user.bsky.social", "app_password": "xxxx-xxxx-xxxx-xxxx"}',
+    browser: '{"username": "user@example.com", "password": "..."}',
+  },
+  reddit: {
+    api: '{"client_id": "...", "client_secret": "...", "username": "...", "password": "...", "user_agent": "werd/1.0 by u/you", "subreddit": "test"}',
+    browser: '{"username": "...", "password": "...", "subreddit": "test"}',
+  },
+  hn: {
+    api: '{}',
+    browser: '{"username": "...", "password": "..."}',
+  },
 };
 
-// Platforms that support publishing (HN is monitoring-only).
-const PUBLISHABLE_PLATFORMS = new Set(["bluesky", "reddit"]);
+const METHOD_GUIDANCE: Record<string, Record<string, string>> = {
+  bluesky: {
+    api: "Faster and more reliable. Uses app password.",
+    browser: "Automates the Bluesky web interface. Uses account password.",
+  },
+  reddit: {
+    api: "Faster. Requires a Reddit 'script' app (reddit.com/prefs/apps).",
+    browser: "No app registration needed. Uses account password.",
+  },
+  hn: {
+    api: "Monitoring only — HN has no posting API.",
+    browser: "Required for posting to HN. Uses account password.",
+  },
+};
+
+// API-publishable platforms (HN needs browser for posting).
+const API_PUBLISHABLE = new Set(["bluesky", "reddit"]);
 
 export default function ConnectionsPage() {
   const { id: projectId } = useParams<{ id: string }>();
@@ -32,11 +56,13 @@ export default function ConnectionsPage() {
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [formPlatform, setFormPlatform] = useState("bluesky");
+  const [formMethod, setFormMethod] = useState<ConnectionMethod>("api");
   const [formCreds, setFormCreds] = useState("");
   const [formEnabled, setFormEnabled] = useState(true);
 
   function resetForm() {
     setFormPlatform("bluesky");
+    setFormMethod("api");
     setFormCreds("");
     setFormEnabled(true);
     setShowForm(false);
@@ -46,6 +72,7 @@ export default function ConnectionsPage() {
   function startEdit(conn: Connection) {
     setEditId(conn.id);
     setFormPlatform(conn.platform);
+    setFormMethod(conn.method);
     setFormCreds("");
     setFormEnabled(conn.enabled);
     setShowForm(true);
@@ -63,12 +90,12 @@ export default function ConnectionsPage() {
 
     if (editId) {
       updateConn.mutate(
-        { connId: editId, platform: formPlatform, credentials, enabled: formEnabled },
+        { connId: editId, platform: formPlatform, method: formMethod, credentials, enabled: formEnabled },
         { onSuccess: resetForm },
       );
     } else {
       createConn.mutate(
-        { platform: formPlatform, credentials, enabled: formEnabled },
+        { platform: formPlatform, method: formMethod, credentials, enabled: formEnabled },
         { onSuccess: resetForm },
       );
     }
@@ -118,15 +145,34 @@ export default function ConnectionsPage() {
                 ))}
               </select>
             </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-600">Method</label>
+              <div className="flex gap-3">
+                <label className="flex items-center gap-1.5">
+                  <input type="radio" name="method" value="api" checked={formMethod === "api"} onChange={() => setFormMethod("api")} />
+                  <span className="text-sm">API</span>
+                </label>
+                <label className="flex items-center gap-1.5">
+                  <input type="radio" name="method" value="browser" checked={formMethod === "browser"} onChange={() => setFormMethod("browser")} />
+                  <span className="text-sm">Browser</span>
+                </label>
+              </div>
+            </div>
             <label className="flex items-center gap-2 self-end">
               <input type="checkbox" checked={formEnabled} onChange={(e) => setFormEnabled(e.target.checked)} />
               <span className="text-sm">Enabled</span>
             </label>
           </div>
 
-          {!PUBLISHABLE_PLATFORMS.has(formPlatform) && (
+          {METHOD_GUIDANCE[formPlatform]?.[formMethod] && (
+            <p className="rounded bg-blue-50 px-3 py-2 text-xs text-blue-700">
+              {METHOD_GUIDANCE[formPlatform][formMethod]}
+            </p>
+          )}
+
+          {formMethod === "api" && !API_PUBLISHABLE.has(formPlatform) && (
             <p className="rounded bg-amber-50 px-3 py-2 text-xs text-amber-700">
-              {PLATFORM_LABELS[formPlatform] ?? formPlatform} is monitoring-only — alerts are ingested but cross-posting is not supported.
+              {PLATFORM_LABELS[formPlatform] ?? formPlatform} API is monitoring-only. Use browser method for posting.
             </p>
           )}
 
@@ -139,10 +185,10 @@ export default function ConnectionsPage() {
             <textarea
               value={formCreds}
               onChange={(e) => setFormCreds(e.target.value)}
-              required={PUBLISHABLE_PLATFORMS.has(formPlatform)}
+              required={formMethod === "browser" || API_PUBLISHABLE.has(formPlatform)}
               rows={3}
               className="w-full rounded border px-3 py-2 font-mono text-sm"
-              placeholder={CREDENTIAL_HINTS[formPlatform] ?? "{}"}
+              placeholder={CREDENTIAL_HINTS[formPlatform]?.[formMethod] ?? "{}"}
             />
           </div>
 
@@ -171,10 +217,13 @@ export default function ConnectionsPage() {
                 <span className="rounded bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700">
                   {PLATFORM_LABELS[conn.platform] ?? conn.platform}
                 </span>
+                <span className={`rounded px-2 py-0.5 text-xs ${conn.method === "browser" ? "bg-purple-100 text-purple-700" : "bg-sky-100 text-sky-700"}`}>
+                  {conn.method}
+                </span>
                 <span className={`rounded px-2 py-0.5 text-xs ${conn.enabled ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-400"}`}>
                   {conn.enabled ? "enabled" : "disabled"}
                 </span>
-                {!PUBLISHABLE_PLATFORMS.has(conn.platform) && (
+                {conn.method === "api" && !API_PUBLISHABLE.has(conn.platform) && (
                   <span className="rounded bg-amber-50 px-2 py-0.5 text-xs text-amber-600">monitoring only</span>
                 )}
                 <span className="text-xs text-gray-400">

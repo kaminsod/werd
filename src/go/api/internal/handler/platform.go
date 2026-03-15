@@ -26,12 +26,14 @@ func NewPlatform(platformSvc *service.Platform, postSvc *service.Post) *Platform
 
 type createConnectionRequest struct {
 	Platform    string          `json:"platform"`
+	Method      string          `json:"method"`
 	Credentials json.RawMessage `json:"credentials"`
 	Enabled     *bool           `json:"enabled"`
 }
 
 type updateConnectionRequest struct {
 	Platform    string          `json:"platform"`
+	Method      string          `json:"method"`
 	Credentials json.RawMessage `json:"credentials"`
 	Enabled     *bool           `json:"enabled"`
 }
@@ -40,6 +42,7 @@ type connectionResponse struct {
 	ID        string    `json:"id"`
 	ProjectID string    `json:"project_id"`
 	Platform  string    `json:"platform"`
+	Method    string    `json:"method"`
 	Enabled   bool      `json:"enabled"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
@@ -118,8 +121,11 @@ func (h *PlatformHandler) CreateConnection(w http.ResponseWriter, r *http.Reques
 		writeJSON(w, http.StatusBadRequest, messageResponse{Message: "platform is required"})
 		return
 	}
-	if len(req.Credentials) == 0 {
-		writeJSON(w, http.StatusBadRequest, messageResponse{Message: "credentials are required"})
+	if req.Method == "" {
+		req.Method = "api"
+	}
+	if req.Method != "api" && req.Method != "browser" {
+		writeJSON(w, http.StatusBadRequest, messageResponse{Message: "method must be 'api' or 'browser'"})
 		return
 	}
 
@@ -128,7 +134,7 @@ func (h *PlatformHandler) CreateConnection(w http.ResponseWriter, r *http.Reques
 		enabled = *req.Enabled
 	}
 
-	conn, err := h.platformSvc.CreateConnection(r.Context(), projectID, req.Platform, req.Credentials, enabled)
+	conn, err := h.platformSvc.CreateConnection(r.Context(), projectID, req.Platform, req.Method, req.Credentials, enabled)
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrUnsupportedPlatform):
@@ -173,9 +179,12 @@ func (h *PlatformHandler) UpdateConnection(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if req.Platform == "" || len(req.Credentials) == 0 {
-		writeJSON(w, http.StatusBadRequest, messageResponse{Message: "platform and credentials are required"})
+	if req.Platform == "" {
+		writeJSON(w, http.StatusBadRequest, messageResponse{Message: "platform is required"})
 		return
+	}
+	if req.Method == "" {
+		req.Method = "api"
 	}
 
 	enabled := true
@@ -183,7 +192,7 @@ func (h *PlatformHandler) UpdateConnection(w http.ResponseWriter, r *http.Reques
 		enabled = *req.Enabled
 	}
 
-	conn, err := h.platformSvc.UpdateConnection(r.Context(), projectID, connID, req.Platform, req.Credentials, enabled)
+	conn, err := h.platformSvc.UpdateConnection(r.Context(), projectID, connID, req.Platform, req.Method, req.Credentials, enabled)
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrConnectionNotFound):
@@ -415,7 +424,7 @@ func (h *PlatformHandler) PublishPost(w http.ResponseWriter, r *http.Request) {
 
 func connInfoToResponse(c *service.ConnectionInfo) *connectionResponse {
 	return &connectionResponse{
-		ID: c.ID, ProjectID: c.ProjectID, Platform: c.Platform,
+		ID: c.ID, ProjectID: c.ProjectID, Platform: c.Platform, Method: c.Method,
 		Enabled: c.Enabled, CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt,
 	}
 }

@@ -25,17 +25,35 @@
 	}
 }
 
+# Snippet: proxy /api/* to werd-api, everything else to dashboard.
+(dashboard_with_api) {
+	import security_headers_local
+
+	# API routes — all under /api/* prefix.
+	handle /api/* {
+		reverse_proxy werd-api:8090
+	}
+
+	# Health check (root level, no /api prefix).
+	handle /healthz {
+		reverse_proxy werd-api:8090
+	}
+
+	# Everything else — serve the dashboard SPA.
+	handle {
+		reverse_proxy werd-dashboard:3000
+	}
+}
+
 # ── Core (Werd) ──
 
 # Port 80: default — serves dashboard on any domain without specifying a port.
 :80 {
-	import security_headers_local
-	reverse_proxy werd-dashboard:3000
+	import dashboard_with_api
 }
 
 :3080 {
-	import security_headers_local
-	reverse_proxy werd-dashboard:3000
+	import dashboard_with_api
 }
 
 :3081 {

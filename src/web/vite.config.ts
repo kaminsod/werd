@@ -10,9 +10,7 @@ export default defineConfig({
   server: {
     port: 3000,
     proxy: {
-      "/auth": { target: "http://localhost:8090", changeOrigin: true },
-      "/projects": { target: "http://localhost:8090", changeOrigin: true },
-      "/webhooks": { target: "http://localhost:8090", changeOrigin: true },
+      "/api": { target: "http://localhost:8090", changeOrigin: true },
       "/healthz": { target: "http://localhost:8090", changeOrigin: true },
     },
   },

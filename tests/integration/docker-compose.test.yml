@@ -20,7 +20,7 @@ services:
       - caddy-data:/data
       - caddy-config:/config
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3081/healthz"]
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3081/api/healthz"]
       interval: 10s
       timeout: 5s
       retries: 3

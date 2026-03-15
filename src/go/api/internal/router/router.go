@@ -31,82 +31,93 @@ func New(
 	r.Use(chimw.Logger)
 	r.Use(chimw.Recoverer)
 
-	// Public routes.
+	// Health check (root level, no /api prefix — used by Docker healthcheck).
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"status":"ok"}`))
 	})
-	r.Post("/auth/login", authH.Login)
 
-	// Webhook ingestion (internal services, API key auth).
-	r.Group(func(r chi.Router) {
-		r.Use(middleware.RequireInternalAPIKey(internalAPIKey))
-		r.Post("/webhooks/ingest", alertH.IngestWebhook)
-	})
+	// All API routes under /api prefix.
+	r.Route("/api", func(r chi.Router) {
+		// Also expose healthz under /api for convenience.
+		r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"status":"ok"}`))
+		})
 
-	// Protected routes (require valid JWT).
-	r.Group(func(r chi.Router) {
-		r.Use(middleware.Authenticate(authSvc))
+		// Public.
+		r.Post("/auth/login", authH.Login)
 
-		// Auth.
-		r.Get("/auth/me", authH.Me)
-		r.Put("/auth/me/password", authH.ChangePassword)
+		// Webhook ingestion (internal services, API key auth).
+		r.Group(func(r chi.Router) {
+			r.Use(middleware.RequireInternalAPIKey(internalAPIKey))
+			r.Post("/webhooks/ingest", alertH.IngestWebhook)
+		})
 
-		// Projects (list + create don't need project membership).
-		r.Get("/projects", projectH.ListProjects)
-		r.Post("/projects", projectH.CreateProject)
+		// Protected routes (require valid JWT).
+		r.Group(func(r chi.Router) {
+			r.Use(middleware.Authenticate(authSvc))
 
-		// Project-scoped routes (require membership).
-		r.Route("/projects/{id}", func(r chi.Router) {
-			r.Use(middleware.RequireProjectMember(queries))
+			// Auth.
+			r.Get("/auth/me", authH.Me)
+			r.Put("/auth/me/password", authH.ChangePassword)
 
-			r.Get("/", projectH.GetProject)
-			r.Put("/", projectH.UpdateProject)
-			r.Delete("/", projectH.DeleteProject)
+			// Projects (list + create don't need project membership).
+			r.Get("/projects", projectH.ListProjects)
+			r.Post("/projects", projectH.CreateProject)
 
-			r.Get("/members", projectH.ListMembers)
-			r.Post("/members", projectH.AddMember)
-			r.Put("/members/{userID}", projectH.UpdateMemberRole)
-			r.Delete("/members/{userID}", projectH.RemoveMember)
+			// Project-scoped routes (require membership).
+			r.Route("/projects/{id}", func(r chi.Router) {
+				r.Use(middleware.RequireProjectMember(queries))
 
-			// Alerts.
-			r.Get("/alerts", alertH.ListAlerts)
-			r.Get("/alerts/{alertID}", alertH.GetAlert)
-			r.Put("/alerts/{alertID}", alertH.UpdateAlertStatus)
+				r.Get("/", projectH.GetProject)
+				r.Put("/", projectH.UpdateProject)
+				r.Delete("/", projectH.DeleteProject)
 
-			// Keywords.
-			r.Get("/keywords", alertH.ListKeywords)
-			r.Post("/keywords", alertH.CreateKeyword)
-			r.Delete("/keywords/{kwID}", alertH.DeleteKeyword)
+				r.Get("/members", projectH.ListMembers)
+				r.Post("/members", projectH.AddMember)
+				r.Put("/members/{userID}", projectH.UpdateMemberRole)
+				r.Delete("/members/{userID}", projectH.RemoveMember)
 
-			// Notification rules.
-			r.Get("/rules", notifH.ListRules)
-			r.Post("/rules", notifH.CreateRule)
-			r.Get("/rules/{ruleID}", notifH.GetRule)
-			r.Put("/rules/{ruleID}", notifH.UpdateRule)
-			r.Delete("/rules/{ruleID}", notifH.DeleteRule)
+				// Alerts.
+				r.Get("/alerts", alertH.ListAlerts)
+				r.Get("/alerts/{alertID}", alertH.GetAlert)
+				r.Put("/alerts/{alertID}", alertH.UpdateAlertStatus)
 
-			// Monitor sources.
-			r.Get("/sources", sourceH.ListSources)
-			r.Post("/sources", sourceH.CreateSource)
-			r.Get("/sources/{sourceID}", sourceH.GetSource)
-			r.Put("/sources/{sourceID}", sourceH.UpdateSource)
-			r.Delete("/sources/{sourceID}", sourceH.DeleteSource)
+				// Keywords.
+				r.Get("/keywords", alertH.ListKeywords)
+				r.Post("/keywords", alertH.CreateKeyword)
+				r.Delete("/keywords/{kwID}", alertH.DeleteKeyword)
 
-			// Platform connections.
-			r.Get("/connections", platformH.ListConnections)
-			r.Post("/connections", platformH.CreateConnection)
-			r.Get("/connections/{connID}", platformH.GetConnection)
-			r.Put("/connections/{connID}", platformH.UpdateConnection)
-			r.Delete("/connections/{connID}", platformH.DeleteConnection)
+				// Notification rules.
+				r.Get("/rules", notifH.ListRules)
+				r.Post("/rules", notifH.CreateRule)
+				r.Get("/rules/{ruleID}", notifH.GetRule)
+				r.Put("/rules/{ruleID}", notifH.UpdateRule)
+				r.Delete("/rules/{ruleID}", notifH.DeleteRule)
 
-			// Published posts.
-			r.Get("/posts", platformH.ListPosts)
-			r.Post("/posts", platformH.CreatePost)
-			r.Get("/posts/{postID}", platformH.GetPost)
-			r.Put("/posts/{postID}", platformH.UpdatePost)
-			r.Delete("/posts/{postID}", platformH.DeletePost)
-			r.Post("/posts/{postID}/publish", platformH.PublishPost)
+				// Monitor sources.
+				r.Get("/sources", sourceH.ListSources)
+				r.Post("/sources", sourceH.CreateSource)
+				r.Get("/sources/{sourceID}", sourceH.GetSource)
+				r.Put("/sources/{sourceID}", sourceH.UpdateSource)
+				r.Delete("/sources/{sourceID}", sourceH.DeleteSource)
+
+				// Platform connections.
+				r.Get("/connections", platformH.ListConnections)
+				r.Post("/connections", platformH.CreateConnection)
+				r.Get("/connections/{connID}", platformH.GetConnection)
+				r.Put("/connections/{connID}", platformH.UpdateConnection)
+				r.Delete("/connections/{connID}", platformH.DeleteConnection)
+
+				// Published posts.
+				r.Get("/posts", platformH.ListPosts)
+				r.Post("/posts", platformH.CreatePost)
+				r.Get("/posts/{postID}", platformH.GetPost)
+				r.Put("/posts/{postID}", platformH.UpdatePost)
+				r.Delete("/posts/{postID}", platformH.DeletePost)
+				r.Post("/posts/{postID}/publish", platformH.PublishPost)
+			})
 		})
 	})
 

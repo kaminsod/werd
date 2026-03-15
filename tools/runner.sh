@@ -248,7 +248,7 @@ cmd_start() {
   compose_cmd up -d
 
   if [ "$MODE" = "local" ]; then
-    wait_for_healthy "http://localhost:3081/healthz" 120 || true
+    wait_for_healthy "http://localhost:3081/api/healthz" 120 || true
   else
     wait_for_healthy "http://localhost:80" 120 || true
   fi
@@ -281,7 +281,7 @@ cmd_status() {
   echo "Health checks:"
 
   if [ "$MODE" = "local" ]; then
-    local checks=("3080/:Dashboard" "3081/healthz:API" "3082/:changedetect" "3083/:RSSHub" "3084/v1/health:ntfy" "3085/:Umami")
+    local checks=("3080/:Dashboard" "3081/api/healthz:API" "3082/:changedetect" "3083/:RSSHub" "3084/v1/health:ntfy" "3085/:Umami")
     for entry in "${checks[@]}"; do
       local path_port="${entry%%:*}"
       local name="${entry##*:}"

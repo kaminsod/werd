@@ -22,11 +22,14 @@
 - [x] 3.1-3.4 Phase 3 services — ntfy, changedetection.io, RSSHub, Umami activated in compose + Caddy
 
 ### In Progress
-(none)
+- [ ] Phase 4: Dashboard UI (Phase A foundation complete)
 
 ### Not Started
 - [ ] 2.9 Post scheduling (river job queue)
-- [ ] Phase 4: Dashboard UI
+- [ ] Dashboard Phase B: alerts + keywords pages
+- [ ] Dashboard Phase C: sources + rules pages
+- [ ] Dashboard Phase D: connections + posts pages
+- [ ] Dashboard Phase E: members + settings pages
 
 ## Phase Overview
 
@@ -35,7 +38,7 @@
 | 1 | Core Infrastructure | Done |
 | 2 | Werd API Server | In progress |
 | 3 | Lightweight Services | Done |
-| 4 | Werd Dashboard | Scaffolding done, awaiting Phase 2 |
+| 4 | Werd Dashboard | In progress (Phase A done) |
 | 5 | Monitoring Pipeline | Not started |
 | 6 | Notification & Routing | Not started |
 | 7 | Publishing Pipeline | Not started |

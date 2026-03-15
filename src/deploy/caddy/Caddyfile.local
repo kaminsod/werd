@@ -1,14 +1,19 @@
 # Werd — Local-only Caddyfile
 # Port-based routing, no TLS, no domain required.
-# Access via http://localhost:<port> or http://<lan-ip>:<port>.
+# Access via http://localhost:<port>, http://<lan-ip>:<port>, or http://<custom-domain>.
 #
 # Port assignments:
-#   3080 = Werd Dashboard
+#   80   = Werd Dashboard (default — works with any domain)
+#   3080 = Werd Dashboard (explicit)
 #   3081 = Werd API
 #   3082 = changedetection.io
 #   3083 = RSSHub
 #   3084 = ntfy
 #   3085 = Umami
+
+{
+	auto_https off
+}
 
 (security_headers_local) {
 	header {
@@ -21,6 +26,12 @@
 }
 
 # ── Core (Werd) ──
+
+# Port 80: default — serves dashboard on any domain without specifying a port.
+:80 {
+	import security_headers_local
+	reverse_proxy werd-dashboard:3000
+}
 
 :3080 {
 	import security_headers_local

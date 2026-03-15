@@ -175,12 +175,14 @@ print_access_info() {
 
   if [ "$MODE" = "local" ]; then
     echo ""
-    echo "  Dashboard:      http://${lan_ip}:3080"
+    echo "  Dashboard:      http://${lan_ip} (or :3080)"
     echo "  API:            http://${lan_ip}:3081"
     echo "  changedetect:   http://${lan_ip}:3082"
     echo "  RSSHub:         http://${lan_ip}:3083"
     echo "  ntfy:           http://${lan_ip}:3084"
     echo "  Umami:          http://${lan_ip}:3085"
+    echo ""
+    echo "  Custom domain:  Point any domain at ${lan_ip} to access the dashboard."
   else
     local domain
     domain=$(grep '^WERD_DOMAIN=' "$ENV_FILE" 2>/dev/null | cut -d= -f2)

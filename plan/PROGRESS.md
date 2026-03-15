@@ -17,13 +17,14 @@
 - [x] 2.4 Multi-project CRUD — project + member CRUD, role-based access, RequireProjectMember middleware
 - [x] 2.6 Webhook ingestion — upsert dedup, keyword matching, alert/keyword CRUD, internal API key auth
 - [x] 2.7 Notification routing engine — rule CRUD, async dispatch to ntfy/webhooks, severity filtering
+- [x] 2.8 Social platform integration — connections CRUD, posts CRUD, Bluesky adapter, synchronous publish
 
 ### In Progress
 (none)
 
 ### Not Started
 - [ ] 2.5 Service provisioning engine
-- [ ] 2.8 Social platform integration
+- [ ] 2.9 Post scheduling
 
 ## Phase Overview
 

@@ -18,6 +18,7 @@ func New(
 	projectH *handler.ProjectHandler,
 	alertH *handler.AlertHandler,
 	notifH *handler.NotificationHandler,
+	platformH *handler.PlatformHandler,
 	queries *storage.Queries,
 	internalAPIKey string,
 ) http.Handler {
@@ -83,6 +84,21 @@ func New(
 			r.Get("/rules/{ruleID}", notifH.GetRule)
 			r.Put("/rules/{ruleID}", notifH.UpdateRule)
 			r.Delete("/rules/{ruleID}", notifH.DeleteRule)
+
+			// Platform connections.
+			r.Get("/connections", platformH.ListConnections)
+			r.Post("/connections", platformH.CreateConnection)
+			r.Get("/connections/{connID}", platformH.GetConnection)
+			r.Put("/connections/{connID}", platformH.UpdateConnection)
+			r.Delete("/connections/{connID}", platformH.DeleteConnection)
+
+			// Published posts.
+			r.Get("/posts", platformH.ListPosts)
+			r.Post("/posts", platformH.CreatePost)
+			r.Get("/posts/{postID}", platformH.GetPost)
+			r.Put("/posts/{postID}", platformH.UpdatePost)
+			r.Delete("/posts/{postID}", platformH.DeletePost)
+			r.Post("/posts/{postID}/publish", platformH.PublishPost)
 		})
 	})
 

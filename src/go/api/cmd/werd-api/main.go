@@ -13,6 +13,7 @@ import (
 
 	"github.com/werd-platform/werd/src/go/api/internal/config"
 	"github.com/werd-platform/werd/src/go/api/internal/handler"
+	"github.com/werd-platform/werd/src/go/api/internal/integration"
 	"github.com/werd-platform/werd/src/go/api/internal/router"
 	"github.com/werd-platform/werd/src/go/api/internal/service"
 	"github.com/werd-platform/werd/src/go/api/internal/storage"
@@ -44,6 +45,13 @@ func main() {
 	keywordService := service.NewKeyword(queries)
 	notificationService := service.NewNotification(queries, cfg.NtfyURL)
 
+	// Platform integration.
+	adapterRegistry := integration.NewRegistry()
+	adapterRegistry.Register("bluesky", integration.NewBluesky(""))
+
+	platformService := service.NewPlatform(queries, adapterRegistry)
+	postService := service.NewPost(queries, platformService, adapterRegistry)
+
 	// Seed admin user from env vars (idempotent).
 	if cfg.AdminEmail != "" && cfg.AdminPassword != "" {
 		if err := authService.SeedAdmin(ctx, cfg.AdminEmail, cfg.AdminPassword); err != nil {
@@ -56,7 +64,8 @@ func main() {
 	projectHandler := handler.NewProject(projectService)
 	alertHandler := handler.NewAlert(alertService, keywordService, notificationService)
 	notificationHandler := handler.NewNotification(notificationService)
-	r := router.New(authService, authHandler, projectHandler, alertHandler, notificationHandler, queries, cfg.InternalAPIKey)
+	platformHandler := handler.NewPlatform(platformService, postService)
+	r := router.New(authService, authHandler, projectHandler, alertHandler, notificationHandler, platformHandler, queries, cfg.InternalAPIKey)
 
 	// HTTP server with graceful shutdown.
 	addr := fmt.Sprintf(":%s", cfg.APIPort)

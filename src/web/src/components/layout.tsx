@@ -2,16 +2,18 @@ import { Outlet, NavLink, useParams, Link } from "react-router";
 import { useProject } from "@/hooks/use-projects";
 import { useAuthStore } from "@/stores/auth";
 import { useLogout } from "@/hooks/use-auth";
+import InfoIcon from "@/components/info-icon";
+import * as help from "@/lib/help-content";
 
 const navItems = [
-  { to: "alerts", label: "Alerts" },
-  { to: "keywords", label: "Keywords" },
-  { to: "sources", label: "Sources" },
-  { to: "rules", label: "Rules" },
-  { to: "connections", label: "Connections" },
-  { to: "posts", label: "Posts" },
-  { to: "members", label: "Members" },
-  { to: "settings", label: "Settings" },
+  { to: "alerts", label: "Alerts", help: help.navAlerts },
+  { to: "keywords", label: "Keywords", help: help.navKeywords },
+  { to: "sources", label: "Sources", help: help.navSources },
+  { to: "rules", label: "Rules", help: help.navRules },
+  { to: "connections", label: "Connections", help: help.navConnections },
+  { to: "posts", label: "Posts", help: help.navPosts },
+  { to: "members", label: "Members", help: help.navMembers },
+  { to: "settings", label: "Settings", help: help.navSettings },
 ];
 
 export default function Layout() {
@@ -48,18 +50,21 @@ export default function Layout() {
           <ul className="space-y-1">
             {navItems.map((item) => (
               <li key={item.to}>
-                <NavLink
-                  to={item.to}
-                  className={({ isActive }) =>
-                    `block rounded px-3 py-2 text-sm ${
-                      isActive
-                        ? "bg-blue-50 font-medium text-blue-700"
-                        : "text-gray-700 hover:bg-gray-100"
-                    }`
-                  }
-                >
-                  {item.label}
-                </NavLink>
+                <div className="flex items-center">
+                  <NavLink
+                    to={item.to}
+                    className={({ isActive }) =>
+                      `flex-1 rounded px-3 py-2 text-sm ${
+                        isActive
+                          ? "bg-blue-50 font-medium text-blue-700"
+                          : "text-gray-700 hover:bg-gray-100"
+                      }`
+                    }
+                  >
+                    {item.label}
+                  </NavLink>
+                  <InfoIcon tooltip={item.help.tooltip}>{item.help.modal}</InfoIcon>
+                </div>
               </li>
             ))}
           </ul>

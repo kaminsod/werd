@@ -1,6 +1,8 @@
 import { useState, type FormEvent } from "react";
 import { useParams } from "react-router";
 import { useRules, useCreateRule, useUpdateRule, useDeleteRule } from "@/hooks/use-rules";
+import InfoIcon from "@/components/info-icon";
+import { minSeverity as minSevHelp, ntfyTopic as ntfyHelp, webhookUrl as webhookHelp } from "@/lib/help-content";
 import type { AlertSeverity, NotificationDestination, NotificationSourceType, Rule } from "@/types/api";
 
 const SOURCE_TYPES: NotificationSourceType[] = ["all", "reddit", "hn", "web", "rss", "github"];
@@ -120,7 +122,10 @@ export default function RulesPage() {
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-gray-600">Min severity</label>
+              <label className="mb-1 block text-xs font-medium text-gray-600">
+                Min severity
+                <InfoIcon tooltip={minSevHelp.tooltip}>{minSevHelp.modal}</InfoIcon>
+              </label>
               <select value={formSeverity} onChange={(e) => setFormSeverity(e.target.value as AlertSeverity)} className="rounded border px-3 py-2 text-sm">
                 {SEVERITIES.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
@@ -139,7 +144,10 @@ export default function RulesPage() {
 
           {formDest === "ntfy" && (
             <div>
-              <label className="mb-1 block text-xs font-medium text-gray-600">ntfy topic</label>
+              <label className="mb-1 block text-xs font-medium text-gray-600">
+                ntfy topic
+                <InfoIcon tooltip={ntfyHelp.tooltip}>{ntfyHelp.modal}</InfoIcon>
+              </label>
               <input
                 value={formTopic}
                 onChange={(e) => setFormTopic(e.target.value)}
@@ -152,7 +160,10 @@ export default function RulesPage() {
 
           {formDest === "webhook" && (
             <div>
-              <label className="mb-1 block text-xs font-medium text-gray-600">Webhook URL</label>
+              <label className="mb-1 block text-xs font-medium text-gray-600">
+                Webhook URL
+                <InfoIcon tooltip={webhookHelp.tooltip}>{webhookHelp.modal}</InfoIcon>
+              </label>
               <input
                 value={formUrl}
                 onChange={(e) => setFormUrl(e.target.value)}

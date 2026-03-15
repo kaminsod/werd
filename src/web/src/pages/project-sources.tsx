@@ -1,6 +1,8 @@
 import { useState, type FormEvent } from "react";
 import { useParams } from "react-router";
 import { useSources, useCreateSource, useUpdateSource, useDeleteSource } from "@/hooks/use-sources";
+import InfoIcon from "@/components/info-icon";
+import { sourceConfig as sourceConfigHelp } from "@/lib/help-content";
 import type { MonitorType, Source } from "@/types/api";
 
 const SOURCE_TYPES: MonitorType[] = ["reddit", "hn", "web", "rss", "github"];
@@ -122,6 +124,7 @@ export default function SourcesPage() {
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-600">
               Config (JSON)
+              <InfoIcon tooltip={sourceConfigHelp.tooltip}>{sourceConfigHelp.modal}</InfoIcon>
             </label>
             <textarea
               value={formConfig}

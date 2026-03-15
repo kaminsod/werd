@@ -1,6 +1,8 @@
 import { useState, type FormEvent } from "react";
 import { useParams } from "react-router";
 import { useKeywords, useCreateKeyword, useDeleteKeyword } from "@/hooks/use-keywords";
+import InfoIcon from "@/components/info-icon";
+import { matchType as matchTypeHelp } from "@/lib/help-content";
 import type { KeywordMatchType } from "@/types/api";
 
 const MATCH_TYPES: KeywordMatchType[] = ["exact", "substring", "regex"];
@@ -54,7 +56,10 @@ export default function KeywordsPage() {
           />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">Match type</label>
+          <label className="mb-1 block text-sm font-medium text-gray-700">
+            Match type
+            <InfoIcon tooltip={matchTypeHelp.tooltip}>{matchTypeHelp.modal}</InfoIcon>
+          </label>
           <select
             value={matchType}
             onChange={(e) => setMatchType(e.target.value as KeywordMatchType)}

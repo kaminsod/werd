@@ -2,6 +2,8 @@ import { useState, type FormEvent } from "react";
 import { useParams } from "react-router";
 import { useMembers, useAddMember, useUpdateMemberRole, useRemoveMember } from "@/hooks/use-members";
 import { useAuthStore } from "@/stores/auth";
+import InfoIcon from "@/components/info-icon";
+import { navMembers as membersHelp, memberUserId as userIdHelp } from "@/lib/help-content";
 import type { Member, ProjectRole } from "@/types/api";
 
 const ROLES: ProjectRole[] = ["owner", "admin", "member", "viewer"];
@@ -63,7 +65,10 @@ export default function MembersPage() {
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Members</h2>
+        <h2 className="text-xl font-semibold">
+          Members
+          <InfoIcon tooltip={membersHelp.tooltip}>{membersHelp.modal}</InfoIcon>
+        </h2>
         {canManage && (
           <button
             onClick={() => setShowForm(!showForm)}
@@ -84,7 +89,10 @@ export default function MembersPage() {
 
           <div className="flex gap-3">
             <div className="flex-1">
-              <label className="mb-1 block text-xs font-medium text-gray-600">User ID</label>
+              <label className="mb-1 block text-xs font-medium text-gray-600">
+                User ID
+                <InfoIcon tooltip={userIdHelp.tooltip}>{userIdHelp.modal}</InfoIcon>
+              </label>
               <input
                 value={userId}
                 onChange={(e) => setUserId(e.target.value)}

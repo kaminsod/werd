@@ -2,6 +2,8 @@ import { useState, type FormEvent } from "react";
 import { useParams } from "react-router";
 import { usePosts, useCreatePost, useUpdatePost, useDeletePost, usePublishPost } from "@/hooks/use-posts";
 import { useConnections } from "@/hooks/use-connections";
+import InfoIcon from "@/components/info-icon";
+import { publishPost as publishHelp } from "@/lib/help-content";
 import type { Post, PostStatus, PlatformPublishResult } from "@/types/api";
 
 const STATUS_COLORS: Record<PostStatus, string> = {
@@ -235,13 +237,16 @@ export default function PostsPage() {
               <div className="flex gap-2">
                 {post.status === "draft" && (
                   <>
-                    <button
-                      onClick={() => handlePublish(post.id)}
-                      disabled={publishPost.isPending}
-                      className="rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-                    >
-                      {publishPost.isPending ? "Publishing..." : "Publish Now"}
-                    </button>
+                    <span className="inline-flex items-center gap-1">
+                      <button
+                        onClick={() => handlePublish(post.id)}
+                        disabled={publishPost.isPending}
+                        className="rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                      >
+                        {publishPost.isPending ? "Publishing..." : "Publish Now"}
+                      </button>
+                      <InfoIcon tooltip={publishHelp.tooltip}>{publishHelp.modal}</InfoIcon>
+                    </span>
                     <button onClick={() => startEdit(post)} className="rounded px-2 py-1 text-xs text-blue-600 hover:bg-blue-50">
                       Edit
                     </button>

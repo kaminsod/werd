@@ -3,6 +3,8 @@ import { Link } from "react-router";
 import { useProjects, useCreateProject } from "@/hooks/use-projects";
 import { useAuthStore } from "@/stores/auth";
 import { useLogout } from "@/hooks/use-auth";
+import InfoIcon from "@/components/info-icon";
+import { projectSlug as slugHelp } from "@/lib/help-content";
 
 export default function ProjectsPage() {
   const { data: projects, isLoading, error } = useProjects();
@@ -63,13 +65,16 @@ export default function ProjectsPage() {
               onChange={(e) => setName(e.target.value)}
               className="flex-1 rounded border px-3 py-2 text-sm"
             />
-            <input
-              placeholder="slug"
-              required
-              value={slug}
-              onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
-              className="w-48 rounded border px-3 py-2 text-sm font-mono"
-            />
+            <span className="inline-flex items-center">
+              <input
+                placeholder="slug"
+                required
+                value={slug}
+                onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
+                className="w-48 rounded border px-3 py-2 text-sm font-mono"
+              />
+              <InfoIcon tooltip={slugHelp.tooltip}>{slugHelp.modal}</InfoIcon>
+            </span>
           </div>
           <button
             type="submit"

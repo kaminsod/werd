@@ -1,6 +1,8 @@
 import { useState, type FormEvent } from "react";
 import { useParams } from "react-router";
 import { useConnections, useCreateConnection, useUpdateConnection, useDeleteConnection } from "@/hooks/use-connections";
+import InfoIcon from "@/components/info-icon";
+import { platformCredentials as credsHelp } from "@/lib/help-content";
 import type { Connection } from "@/types/api";
 
 const PLATFORMS = ["bluesky"];
@@ -117,7 +119,9 @@ export default function ConnectionsPage() {
 
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-600">
-              Credentials (JSON) {editId && <span className="font-normal text-gray-400">— re-enter to update</span>}
+              Credentials (JSON)
+              <InfoIcon tooltip={credsHelp.tooltip}>{credsHelp.modal}</InfoIcon>
+              {editId && <span className="font-normal text-gray-400"> — re-enter to update</span>}
             </label>
             <textarea
               value={formCreds}

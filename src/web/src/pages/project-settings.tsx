@@ -1,6 +1,8 @@
 import { useState, useEffect, type FormEvent } from "react";
 import { useParams, useNavigate } from "react-router";
 import { useProject, useUpdateProject, useDeleteProject } from "@/hooks/use-projects";
+import InfoIcon from "@/components/info-icon";
+import { projectSlug as slugHelp } from "@/lib/help-content";
 
 export default function SettingsPage() {
   const { id: projectId } = useParams<{ id: string }>();
@@ -58,7 +60,10 @@ export default function SettingsPage() {
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium">Slug</label>
+          <label className="mb-1 block text-sm font-medium">
+            Slug
+            <InfoIcon tooltip={slugHelp.tooltip}>{slugHelp.modal}</InfoIcon>
+          </label>
           <input
             value={slug}
             onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}

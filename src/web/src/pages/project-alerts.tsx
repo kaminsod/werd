@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useParams } from "react-router";
 import { useAlerts, useUpdateAlertStatus } from "@/hooks/use-alerts";
+import InfoIcon from "@/components/info-icon";
+import { alertSeverity as severityHelp, alertStatus as statusHelp } from "@/lib/help-content";
 import type { Alert, AlertSeverity, AlertStatus } from "@/types/api";
 
 const SEVERITY_COLORS: Record<AlertSeverity, string> = {
@@ -50,7 +52,10 @@ export default function AlertsPage() {
 
   return (
     <div>
-      <h2 className="mb-4 text-xl font-semibold">Alerts</h2>
+      <h2 className="mb-4 text-xl font-semibold">
+        Alerts
+        <InfoIcon tooltip={severityHelp.tooltip}>{severityHelp.modal}</InfoIcon>
+      </h2>
 
       {/* Filters */}
       <div className="mb-4 flex gap-3">
@@ -189,7 +194,10 @@ function AlertRow({
           )}
 
           <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-500">Set status:</span>
+            <span className="text-xs text-gray-500">
+            Set status:
+            <InfoIcon tooltip={statusHelp.tooltip}>{statusHelp.modal}</InfoIcon>
+          </span>
             {STATUSES.filter((s) => s !== alert.status).map((s) => (
               <button
                 key={s}

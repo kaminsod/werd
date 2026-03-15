@@ -55,26 +55,25 @@ api.{$WERD_DOMAIN} {
 }
 
 # ── Lightweight Services ──
-# Uncomment as services are activated.
 
-# monitor.{$WERD_DOMAIN} {
-# 	import security_headers
-# 	reverse_proxy changedetect:5000
-# }
+monitor.{$WERD_DOMAIN} {
+	import security_headers
+	reverse_proxy changedetect:5000
+}
 
-# rss.{$WERD_DOMAIN} {
-# 	import security_headers
-# 	reverse_proxy rsshub:1200
-# }
+rss.{$WERD_DOMAIN} {
+	import security_headers
+	reverse_proxy rsshub:1200
+}
 
-# ntfy.{$WERD_DOMAIN} {
-# 	import security_headers
-#
-# 	# ntfy uses WebSocket and Server-Sent Events for real-time push
-# 	reverse_proxy ntfy:2586
-# }
+ntfy.{$WERD_DOMAIN} {
+	import security_headers
 
-# analytics.{$WERD_DOMAIN} {
-# 	import security_headers
-# 	reverse_proxy umami:3000
-# }
+	# ntfy uses WebSocket and Server-Sent Events for real-time push
+	reverse_proxy ntfy:2586
+}
+
+analytics.{$WERD_DOMAIN} {
+	import security_headers
+	reverse_proxy umami:3000
+}

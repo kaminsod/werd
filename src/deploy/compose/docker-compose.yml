@@ -120,69 +120,69 @@ services:
 
   # ── Lightweight Services ──
 
-  # ntfy:
-  #   image: binwiederhier/ntfy:latest
-  #   restart: unless-stopped
-  #   command: serve
-  #   volumes:
-  #     - ntfy-data:/var/lib/ntfy
-  #   networks:
-  #     - werd-net
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "wget -qO- http://localhost:2586/v1/health | grep -q healthy"]
-  #     interval: 10s
-  #     timeout: 5s
-  #     retries: 3
-  #     start_period: 10s
+  ntfy:
+    image: binwiederhier/ntfy:latest
+    restart: unless-stopped
+    command: serve
+    volumes:
+      - ntfy-data:/var/lib/ntfy
+    networks:
+      - werd-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:2586/v1/health | grep -q healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
-  # changedetect:
-  #   image: ghcr.io/dgtlmoon/changedetection.io:latest
-  #   restart: unless-stopped
-  #   volumes:
-  #     - changedetect-data:/datastore
-  #   networks:
-  #     - werd-net
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "curl -sf http://localhost:5000/ > /dev/null"]
-  #     interval: 15s
-  #     timeout: 5s
-  #     retries: 3
-  #     start_period: 15s
+  changedetect:
+    image: ghcr.io/dgtlmoon/changedetection.io:latest
+    restart: unless-stopped
+    volumes:
+      - changedetect-data:/datastore
+    networks:
+      - werd-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:5000/ > /dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
 
-  # rsshub:
-  #   image: diygod/rsshub:latest
-  #   restart: unless-stopped
-  #   environment:
-  #     CACHE_TYPE: redis
-  #     REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/2
-  #   networks:
-  #     - werd-net
-  #   depends_on:
-  #     redis:
-  #       condition: service_healthy
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:1200/"]
-  #     interval: 15s
-  #     timeout: 5s
-  #     retries: 3
-  #     start_period: 15s
+  rsshub:
+    image: diygod/rsshub:latest
+    restart: unless-stopped
+    environment:
+      CACHE_TYPE: redis
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/2
+    networks:
+      - werd-net
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:1200/"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
 
-  # umami:
-  #   image: ghcr.io/umami-software/umami:postgresql-latest
-  #   restart: unless-stopped
-  #   environment:
-  #     DATABASE_URL: postgres://umami:${UMAMI_DB_PASSWORD}@postgres:5432/umami?sslmode=disable
-  #   networks:
-  #     - werd-net
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3000/api/heartbeat"]
-  #     interval: 15s
-  #     timeout: 5s
-  #     retries: 3
-  #     start_period: 30s
+  umami:
+    image: ghcr.io/umami-software/umami:postgresql-latest
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://umami:${UMAMI_DB_PASSWORD}@postgres:5432/umami?sslmode=disable
+    networks:
+      - werd-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3000/api/heartbeat"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
   # ── Custom Monitors ──
 
@@ -244,5 +244,5 @@ volumes:
   redis-data:
   caddy-data:
   caddy-config:
-  # ntfy-data:
-  # changedetect-data:
+  ntfy-data:
+  changedetect-data:

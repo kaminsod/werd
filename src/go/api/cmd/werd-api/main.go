@@ -49,6 +49,7 @@ func main() {
 	adapterRegistry := integration.NewRegistry()
 	adapterRegistry.Register("bluesky", integration.NewBluesky(""))
 
+	monitorSourceService := service.NewMonitorSource(queries)
 	platformService := service.NewPlatform(queries, adapterRegistry)
 	postService := service.NewPost(queries, platformService, adapterRegistry)
 
@@ -64,8 +65,9 @@ func main() {
 	projectHandler := handler.NewProject(projectService)
 	alertHandler := handler.NewAlert(alertService, keywordService, notificationService)
 	notificationHandler := handler.NewNotification(notificationService)
+	monitorSourceHandler := handler.NewMonitorSource(monitorSourceService)
 	platformHandler := handler.NewPlatform(platformService, postService)
-	r := router.New(authService, authHandler, projectHandler, alertHandler, notificationHandler, platformHandler, queries, cfg.InternalAPIKey)
+	r := router.New(authService, authHandler, projectHandler, alertHandler, notificationHandler, platformHandler, monitorSourceHandler, queries, cfg.InternalAPIKey)
 
 	// HTTP server with graceful shutdown.
 	addr := fmt.Sprintf(":%s", cfg.APIPort)

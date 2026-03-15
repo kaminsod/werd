@@ -19,6 +19,7 @@ func New(
 	alertH *handler.AlertHandler,
 	notifH *handler.NotificationHandler,
 	platformH *handler.PlatformHandler,
+	sourceH *handler.MonitorSourceHandler,
 	queries *storage.Queries,
 	internalAPIKey string,
 ) http.Handler {
@@ -84,6 +85,13 @@ func New(
 			r.Get("/rules/{ruleID}", notifH.GetRule)
 			r.Put("/rules/{ruleID}", notifH.UpdateRule)
 			r.Delete("/rules/{ruleID}", notifH.DeleteRule)
+
+			// Monitor sources.
+			r.Get("/sources", sourceH.ListSources)
+			r.Post("/sources", sourceH.CreateSource)
+			r.Get("/sources/{sourceID}", sourceH.GetSource)
+			r.Put("/sources/{sourceID}", sourceH.UpdateSource)
+			r.Delete("/sources/{sourceID}", sourceH.DeleteSource)
 
 			// Platform connections.
 			r.Get("/connections", platformH.ListConnections)

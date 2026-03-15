@@ -42,24 +42,23 @@
 }
 
 # ── Lightweight Services ──
-# Uncomment as services are activated.
 
-# :3082 {
-# 	import security_headers_local
-# 	reverse_proxy changedetect:5000
-# }
+:3082 {
+	import security_headers_local
+	reverse_proxy changedetect:5000
+}
 
-# :3083 {
-# 	import security_headers_local
-# 	reverse_proxy rsshub:1200
-# }
+:3083 {
+	import security_headers_local
+	reverse_proxy rsshub:1200
+}
 
-# :3084 {
-# 	import security_headers_local
-# 	reverse_proxy ntfy:2586
-# }
+:3084 {
+	import security_headers_local
+	reverse_proxy ntfy:2586
+}
 
-# :3085 {
-# 	import security_headers_local
-# 	reverse_proxy umami:3000
-# }
+:3085 {
+	import security_headers_local
+	reverse_proxy umami:3000
+}

@@ -18,13 +18,15 @@
 - [x] 2.6 Webhook ingestion — upsert dedup, keyword matching, alert/keyword CRUD, internal API key auth
 - [x] 2.7 Notification routing engine — rule CRUD, async dispatch to ntfy/webhooks, severity filtering
 - [x] 2.8 Social platform integration — connections CRUD, posts CRUD, Bluesky adapter, synchronous publish
+- [x] Monitor sources CRUD — 5 endpoints for configuring per-project monitoring sources
+- [x] 3.1-3.4 Phase 3 services — ntfy, changedetection.io, RSSHub, Umami activated in compose + Caddy
 
 ### In Progress
 (none)
 
 ### Not Started
-- [ ] 2.5 Service provisioning engine
-- [ ] 2.9 Post scheduling
+- [ ] 2.9 Post scheduling (river job queue)
+- [ ] Phase 4: Dashboard UI
 
 ## Phase Overview
 
@@ -32,7 +34,7 @@
 |---|---|---|
 | 1 | Core Infrastructure | Done |
 | 2 | Werd API Server | In progress |
-| 3 | Lightweight Services | Not started |
+| 3 | Lightweight Services | Done |
 | 4 | Werd Dashboard | Scaffolding done, awaiting Phase 2 |
 | 5 | Monitoring Pipeline | Not started |
 | 6 | Notification & Routing | Not started |

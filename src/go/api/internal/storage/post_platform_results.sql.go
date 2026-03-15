@@ -15,7 +15,7 @@ import (
 const createPostPlatformResult = `-- name: CreatePostPlatformResult :one
 INSERT INTO post_platform_results (post_id, platform, platform_post_id, platform_url, success, error_message, published_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, post_id, platform, platform_post_id, platform_url, success, error_message, published_at, created_at
+RETURNING id, post_id, platform, platform_post_id, platform_url, success, error_message, published_at, created_at, monitor_replies, last_reply_check, last_known_reply_id
 `
 
 type CreatePostPlatformResultParams struct {
@@ -49,12 +49,79 @@ func (q *Queries) CreatePostPlatformResult(ctx context.Context, arg CreatePostPl
 		&i.ErrorMessage,
 		&i.PublishedAt,
 		&i.CreatedAt,
+		&i.MonitorReplies,
+		&i.LastReplyCheck,
+		&i.LastKnownReplyID,
 	)
 	return i, err
 }
 
+const listMonitoredResults = `-- name: ListMonitoredResults :many
+SELECT ppr.id, ppr.post_id, ppr.platform, ppr.platform_post_id, ppr.platform_url,
+       ppr.success, ppr.error_message, ppr.published_at, ppr.created_at,
+       ppr.monitor_replies, ppr.last_reply_check, ppr.last_known_reply_id,
+       pp.project_id
+FROM post_platform_results ppr
+JOIN published_posts pp ON pp.id = ppr.post_id
+WHERE ppr.monitor_replies = true
+  AND ppr.success = true
+  AND ppr.platform_post_id != ''
+ORDER BY ppr.last_reply_check NULLS FIRST
+LIMIT $1
+`
+
+type ListMonitoredResultsRow struct {
+	ID               uuid.UUID          `json:"id"`
+	PostID           uuid.UUID          `json:"post_id"`
+	Platform         string             `json:"platform"`
+	PlatformPostID   string             `json:"platform_post_id"`
+	PlatformUrl      string             `json:"platform_url"`
+	Success          bool               `json:"success"`
+	ErrorMessage     string             `json:"error_message"`
+	PublishedAt      pgtype.Timestamptz `json:"published_at"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	MonitorReplies   bool               `json:"monitor_replies"`
+	LastReplyCheck   pgtype.Timestamptz `json:"last_reply_check"`
+	LastKnownReplyID string             `json:"last_known_reply_id"`
+	ProjectID        uuid.UUID          `json:"project_id"`
+}
+
+func (q *Queries) ListMonitoredResults(ctx context.Context, limit int32) ([]ListMonitoredResultsRow, error) {
+	rows, err := q.db.Query(ctx, listMonitoredResults, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListMonitoredResultsRow{}
+	for rows.Next() {
+		var i ListMonitoredResultsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.PostID,
+			&i.Platform,
+			&i.PlatformPostID,
+			&i.PlatformUrl,
+			&i.Success,
+			&i.ErrorMessage,
+			&i.PublishedAt,
+			&i.CreatedAt,
+			&i.MonitorReplies,
+			&i.LastReplyCheck,
+			&i.LastKnownReplyID,
+			&i.ProjectID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPostPlatformResults = `-- name: ListPostPlatformResults :many
-SELECT id, post_id, platform, platform_post_id, platform_url, success, error_message, published_at, created_at
+SELECT id, post_id, platform, platform_post_id, platform_url, success, error_message, published_at, created_at, monitor_replies, last_reply_check, last_known_reply_id
 FROM post_platform_results
 WHERE post_id = $1
 ORDER BY created_at
@@ -79,6 +146,9 @@ func (q *Queries) ListPostPlatformResults(ctx context.Context, postID uuid.UUID)
 			&i.ErrorMessage,
 			&i.PublishedAt,
 			&i.CreatedAt,
+			&i.MonitorReplies,
+			&i.LastReplyCheck,
+			&i.LastKnownReplyID,
 		); err != nil {
 			return nil, err
 		}
@@ -88,4 +158,36 @@ func (q *Queries) ListPostPlatformResults(ctx context.Context, postID uuid.UUID)
 		return nil, err
 	}
 	return items, nil
+}
+
+const setMonitorReplies = `-- name: SetMonitorReplies :exec
+UPDATE post_platform_results
+SET monitor_replies = $2
+WHERE id = $1
+`
+
+type SetMonitorRepliesParams struct {
+	ID             uuid.UUID `json:"id"`
+	MonitorReplies bool      `json:"monitor_replies"`
+}
+
+func (q *Queries) SetMonitorReplies(ctx context.Context, arg SetMonitorRepliesParams) error {
+	_, err := q.db.Exec(ctx, setMonitorReplies, arg.ID, arg.MonitorReplies)
+	return err
+}
+
+const updateReplyCheckpoint = `-- name: UpdateReplyCheckpoint :exec
+UPDATE post_platform_results
+SET last_reply_check = now(), last_known_reply_id = $2
+WHERE id = $1
+`
+
+type UpdateReplyCheckpointParams struct {
+	ID               uuid.UUID `json:"id"`
+	LastKnownReplyID string    `json:"last_known_reply_id"`
+}
+
+func (q *Queries) UpdateReplyCheckpoint(ctx context.Context, arg UpdateReplyCheckpointParams) error {
+	_, err := q.db.Exec(ctx, updateReplyCheckpoint, arg.ID, arg.LastKnownReplyID)
+	return err
 }

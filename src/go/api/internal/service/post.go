@@ -232,6 +232,46 @@ func (s *Post) Delete(ctx context.Context, projectID, postID string) error {
 	})
 }
 
+// PlatformResultInfo represents a persisted publish result for a platform.
+type PlatformResultInfo struct {
+	ID             string
+	PostID         string
+	Platform       string
+	PlatformPostID string
+	PlatformURL    string
+	Success        bool
+	ErrorMessage   string
+	MonitorReplies bool
+}
+
+// GetPlatformResults returns the persisted per-platform publish outcomes for a post.
+func (s *Post) GetPlatformResults(ctx context.Context, postID string) ([]PlatformResultInfo, error) {
+	poid, err := uuid.Parse(postID)
+	if err != nil {
+		return nil, ErrPostNotFound
+	}
+
+	rows, err := s.q.ListPostPlatformResults(ctx, poid)
+	if err != nil {
+		return nil, fmt.Errorf("listing platform results: %w", err)
+	}
+
+	results := make([]PlatformResultInfo, len(rows))
+	for i, r := range rows {
+		results[i] = PlatformResultInfo{
+			ID:             r.ID.String(),
+			PostID:         r.PostID.String(),
+			Platform:       r.Platform,
+			PlatformPostID: r.PlatformPostID,
+			PlatformURL:    r.PlatformUrl,
+			Success:        r.Success,
+			ErrorMessage:   r.ErrorMessage,
+			MonitorReplies: r.MonitorReplies,
+		}
+	}
+	return results, nil
+}
+
 // Publish publishes a draft post to all its target platforms synchronously.
 // Returns per-platform results and an error if any platform failed.
 func (s *Post) Publish(ctx context.Context, projectID, postID string) ([]PlatformPublishResult, error) {

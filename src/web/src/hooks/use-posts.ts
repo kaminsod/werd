@@ -65,3 +65,10 @@ export function usePublishPost(projectId: string) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["projects", projectId, "posts"] }),
   });
 }
+
+export function useSetPostMonitor(projectId: string) {
+  return useMutation({
+    mutationFn: ({ postId, enable }: { postId: string; enable: boolean }) =>
+      apiMutate(`/projects/${projectId}/posts/${postId}/monitor`, "PUT", { enable }),
+  });
+}

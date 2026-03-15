@@ -3,6 +3,8 @@ package handler
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"log"
 	"net/http"
 	"time"
 
@@ -14,12 +16,13 @@ import (
 )
 
 type PlatformHandler struct {
-	platformSvc *service.Platform
-	postSvc     *service.Post
+	platformSvc  *service.Platform
+	postSvc      *service.Post
+	replyMonitor *service.ReplyMonitor
 }
 
-func NewPlatform(platformSvc *service.Platform, postSvc *service.Post) *PlatformHandler {
-	return &PlatformHandler{platformSvc: platformSvc, postSvc: postSvc}
+func NewPlatform(platformSvc *service.Platform, postSvc *service.Post, replyMonitor *service.ReplyMonitor) *PlatformHandler {
+	return &PlatformHandler{platformSvc: platformSvc, postSvc: postSvc, replyMonitor: replyMonitor}
 }
 
 // --- Request/Response types ---
@@ -433,6 +436,61 @@ func (h *PlatformHandler) PublishPost(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, publishResponse{
 		Post: *postInfoToResponse(post), Results: results,
 	})
+}
+
+// ============================================================================
+// Reply monitoring
+// ============================================================================
+
+type setMonitorRequest struct {
+	Enable bool `json:"enable"`
+}
+
+// SetPostMonitor handles PUT /projects/{id}/posts/{postID}/monitor.
+func (h *PlatformHandler) SetPostMonitor(w http.ResponseWriter, r *http.Request) {
+	projectID := middleware.ProjectIDFromContext(r.Context())
+	postID := chi.URLParam(r, "postID")
+
+	var req setMonitorRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, messageResponse{Message: "invalid request body"})
+		return
+	}
+
+	// Get the post's platform results.
+	post, err := h.postSvc.Get(r.Context(), projectID, postID)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, messageResponse{Message: "post not found"})
+		return
+	}
+	if post.Status != "published" {
+		writeJSON(w, http.StatusBadRequest, messageResponse{Message: "can only monitor published posts"})
+		return
+	}
+
+	// Get platform results for this post and enable/disable monitoring.
+	results, err := h.postSvc.GetPlatformResults(r.Context(), postID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to get platform results", err)
+		return
+	}
+
+	enabled := 0
+	for _, result := range results {
+		if result.Success && result.PlatformPostID != "" {
+			if err := h.replyMonitor.EnableMonitoring(r.Context(), result.ID, req.Enable); err != nil {
+				log.Printf("reply monitor: failed to set monitoring for %s: %v", result.ID, err)
+				continue
+			}
+			enabled++
+		}
+	}
+
+	if req.Enable {
+		writeJSON(w, http.StatusOK, messageResponse{Message: fmt.Sprintf("reply monitoring enabled for %d platforms", enabled)})
+	} else {
+		writeJSON(w, http.StatusOK, messageResponse{Message: "reply monitoring disabled"})
+	}
 }
 
 // --- Helpers ---

@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { useParams } from "react-router";
-import { usePosts, useCreatePost, useUpdatePost, useDeletePost, usePublishPost } from "@/hooks/use-posts";
+import { usePosts, useCreatePost, useUpdatePost, useDeletePost, usePublishPost, useSetPostMonitor } from "@/hooks/use-posts";
 import { useConnections } from "@/hooks/use-connections";
 import InfoIcon from "@/components/info-icon";
 import { publishPost as publishHelp } from "@/lib/help-content";
@@ -32,6 +32,7 @@ export default function PostsPage() {
   const updatePost = useUpdatePost(projectId!);
   const deletePost = useDeletePost(projectId!);
   const publishPost = usePublishPost(projectId!);
+  const setMonitor = useSetPostMonitor(projectId!);
 
   const [showCompose, setShowCompose] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -334,6 +335,15 @@ export default function PostsPage() {
                     className="rounded bg-orange-600 px-3 py-1 text-xs font-medium text-white hover:bg-orange-700 disabled:opacity-50"
                   >
                     Retry
+                  </button>
+                )}
+                {post.status === "published" && (
+                  <button
+                    onClick={() => setMonitor.mutate({ postId: post.id, enable: true })}
+                    disabled={setMonitor.isPending}
+                    className="rounded border border-purple-300 px-3 py-1 text-xs text-purple-600 hover:bg-purple-50 disabled:opacity-50"
+                  >
+                    {setMonitor.isPending ? "..." : "Monitor Replies"}
                   </button>
                 )}
               </div>

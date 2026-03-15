@@ -562,15 +562,18 @@ type PlatformConnection struct {
 }
 
 type PostPlatformResult struct {
-	ID             uuid.UUID          `json:"id"`
-	PostID         uuid.UUID          `json:"post_id"`
-	Platform       string             `json:"platform"`
-	PlatformPostID string             `json:"platform_post_id"`
-	PlatformUrl    string             `json:"platform_url"`
-	Success        bool               `json:"success"`
-	ErrorMessage   string             `json:"error_message"`
-	PublishedAt    pgtype.Timestamptz `json:"published_at"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	ID               uuid.UUID          `json:"id"`
+	PostID           uuid.UUID          `json:"post_id"`
+	Platform         string             `json:"platform"`
+	PlatformPostID   string             `json:"platform_post_id"`
+	PlatformUrl      string             `json:"platform_url"`
+	Success          bool               `json:"success"`
+	ErrorMessage     string             `json:"error_message"`
+	PublishedAt      pgtype.Timestamptz `json:"published_at"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	MonitorReplies   bool               `json:"monitor_replies"`
+	LastReplyCheck   pgtype.Timestamptz `json:"last_reply_check"`
+	LastKnownReplyID string             `json:"last_known_reply_id"`
 }
 
 type Project struct {

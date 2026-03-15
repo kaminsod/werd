@@ -76,6 +76,14 @@ func main() {
 	platformService := service.NewPlatform(queries, adapterRegistry)
 	postService := service.NewPost(queries, platformService, adapterRegistry)
 
+	// Reply monitoring: platform readers.
+	readerRegistry := integration.NewReaderRegistry()
+	readerRegistry.Register("reddit", integration.NewRedditReader())
+	readerRegistry.Register("hn", integration.NewHNReader())
+	readerRegistry.Register("bluesky", integration.NewBlueskyReader())
+
+	replyMonitor := service.NewReplyMonitor(queries, platformService, alertService, readerRegistry, 5*time.Minute)
+
 	// Seed admin user from env vars (idempotent).
 	if cfg.AdminEmail != "" && cfg.AdminPassword != "" {
 		if err := authService.SeedAdmin(ctx, cfg.AdminEmail, cfg.AdminPassword); err != nil {
@@ -83,13 +91,16 @@ func main() {
 		}
 	}
 
+	// Start reply monitor background goroutine.
+	go replyMonitor.Run(ctx)
+
 	// Handlers and router.
 	authHandler := handler.NewAuth(authService)
 	projectHandler := handler.NewProject(projectService)
 	alertHandler := handler.NewAlert(alertService, keywordService, notificationService)
 	notificationHandler := handler.NewNotification(notificationService)
 	monitorSourceHandler := handler.NewMonitorSource(monitorSourceService)
-	platformHandler := handler.NewPlatform(platformService, postService)
+	platformHandler := handler.NewPlatform(platformService, postService, replyMonitor)
 	r := router.New(authService, authHandler, projectHandler, alertHandler, notificationHandler, platformHandler, monitorSourceHandler, queries, cfg.InternalAPIKey)
 
 	// HTTP server with graceful shutdown.

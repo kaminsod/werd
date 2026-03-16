@@ -2,7 +2,7 @@ import { useState, type FormEvent } from "react";
 import { useParams } from "react-router";
 import { useKeywords, useCreateKeyword, useDeleteKeyword } from "@/hooks/use-keywords";
 import InfoIcon from "@/components/info-icon";
-import { matchType as matchTypeHelp } from "@/lib/help-content";
+import { matchType as matchTypeHelp, navKeywords as keywordsHelp } from "@/lib/help-content";
 import type { KeywordMatchType } from "@/types/api";
 
 const MATCH_TYPES: KeywordMatchType[] = ["exact", "substring", "regex"];
@@ -41,7 +41,17 @@ export default function KeywordsPage() {
 
   return (
     <div>
-      <h2 className="mb-4 text-xl font-semibold">Keywords</h2>
+      <h2 className="mb-2 text-xl font-semibold">
+        Keywords
+        <InfoIcon tooltip={keywordsHelp.tooltip}>{keywordsHelp.modal}</InfoIcon>
+      </h2>
+      <p className="mb-4 text-sm text-gray-500">
+        Keywords are matched against incoming alerts at ingest time. When a monitor source detects
+        new content (e.g. a Reddit post, HN story, or web page change), Werd checks the alert's title
+        and body against all keywords defined here. Matched keywords are displayed on each alert for
+        quick triage. Use <strong>substring</strong> for general monitoring, <strong>exact</strong> for
+        precise terms, or <strong>regex</strong> for complex patterns.
+      </p>
 
       {/* Add keyword form */}
       <form onSubmit={handleCreate} className="mb-6 flex items-end gap-3">

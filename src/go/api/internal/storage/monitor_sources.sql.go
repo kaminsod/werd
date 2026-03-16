@@ -14,7 +14,7 @@ import (
 const createMonitorSource = `-- name: CreateMonitorSource :one
 INSERT INTO monitor_sources (project_id, type, config, enabled)
 VALUES ($1, $2, $3, $4)
-RETURNING id, project_id, type, config, enabled, created_at, updated_at
+RETURNING id, project_id, type, config, enabled, created_at, updated_at, watermark, last_poll_at
 `
 
 type CreateMonitorSourceParams struct {
@@ -40,6 +40,8 @@ func (q *Queries) CreateMonitorSource(ctx context.Context, arg CreateMonitorSour
 		&i.Enabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Watermark,
+		&i.LastPollAt,
 	)
 	return i, err
 }
@@ -60,7 +62,7 @@ func (q *Queries) DeleteMonitorSource(ctx context.Context, arg DeleteMonitorSour
 }
 
 const getMonitorSourceByID = `-- name: GetMonitorSourceByID :one
-SELECT id, project_id, type, config, enabled, created_at, updated_at
+SELECT id, project_id, type, config, enabled, created_at, updated_at, watermark, last_poll_at
 FROM monitor_sources
 WHERE id = $1 AND project_id = $2
 `
@@ -81,12 +83,52 @@ func (q *Queries) GetMonitorSourceByID(ctx context.Context, arg GetMonitorSource
 		&i.Enabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Watermark,
+		&i.LastPollAt,
 	)
 	return i, err
 }
 
+const listAllEnabledMonitorSources = `-- name: ListAllEnabledMonitorSources :many
+SELECT id, project_id, type, config, enabled, created_at, updated_at, watermark, last_poll_at
+FROM monitor_sources
+WHERE enabled = true
+ORDER BY last_poll_at NULLS FIRST, updated_at
+LIMIT $1
+`
+
+func (q *Queries) ListAllEnabledMonitorSources(ctx context.Context, limit int32) ([]MonitorSource, error) {
+	rows, err := q.db.Query(ctx, listAllEnabledMonitorSources, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []MonitorSource{}
+	for rows.Next() {
+		var i MonitorSource
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.Type,
+			&i.Config,
+			&i.Enabled,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Watermark,
+			&i.LastPollAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listEnabledMonitorSources = `-- name: ListEnabledMonitorSources :many
-SELECT id, project_id, type, config, enabled, created_at, updated_at
+SELECT id, project_id, type, config, enabled, created_at, updated_at, watermark, last_poll_at
 FROM monitor_sources
 WHERE project_id = $1 AND enabled = true
 ORDER BY created_at
@@ -109,6 +151,8 @@ func (q *Queries) ListEnabledMonitorSources(ctx context.Context, projectID uuid.
 			&i.Enabled,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Watermark,
+			&i.LastPollAt,
 		); err != nil {
 			return nil, err
 		}
@@ -121,7 +165,7 @@ func (q *Queries) ListEnabledMonitorSources(ctx context.Context, projectID uuid.
 }
 
 const listMonitorSources = `-- name: ListMonitorSources :many
-SELECT id, project_id, type, config, enabled, created_at, updated_at
+SELECT id, project_id, type, config, enabled, created_at, updated_at, watermark, last_poll_at
 FROM monitor_sources
 WHERE project_id = $1
 ORDER BY created_at
@@ -144,6 +188,8 @@ func (q *Queries) ListMonitorSources(ctx context.Context, projectID uuid.UUID) (
 			&i.Enabled,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Watermark,
+			&i.LastPollAt,
 		); err != nil {
 			return nil, err
 		}
@@ -159,7 +205,7 @@ const updateMonitorSource = `-- name: UpdateMonitorSource :one
 UPDATE monitor_sources
 SET type = $3, config = $4, enabled = $5
 WHERE id = $1 AND project_id = $2
-RETURNING id, project_id, type, config, enabled, created_at, updated_at
+RETURNING id, project_id, type, config, enabled, created_at, updated_at, watermark, last_poll_at
 `
 
 type UpdateMonitorSourceParams struct {
@@ -187,6 +233,24 @@ func (q *Queries) UpdateMonitorSource(ctx context.Context, arg UpdateMonitorSour
 		&i.Enabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Watermark,
+		&i.LastPollAt,
 	)
 	return i, err
+}
+
+const updateSourceWatermark = `-- name: UpdateSourceWatermark :exec
+UPDATE monitor_sources
+SET watermark = $2, last_poll_at = now()
+WHERE id = $1
+`
+
+type UpdateSourceWatermarkParams struct {
+	ID        uuid.UUID `json:"id"`
+	Watermark []byte    `json:"watermark"`
+}
+
+func (q *Queries) UpdateSourceWatermark(ctx context.Context, arg UpdateSourceWatermarkParams) error {
+	_, err := q.db.Exec(ctx, updateSourceWatermark, arg.ID, arg.Watermark)
+	return err
 }

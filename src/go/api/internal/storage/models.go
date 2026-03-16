@@ -530,13 +530,15 @@ type Keyword struct {
 }
 
 type MonitorSource struct {
-	ID        uuid.UUID          `json:"id"`
-	ProjectID uuid.UUID          `json:"project_id"`
-	Type      MonitorType        `json:"type"`
-	Config    []byte             `json:"config"`
-	Enabled   bool               `json:"enabled"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+	ID         uuid.UUID          `json:"id"`
+	ProjectID  uuid.UUID          `json:"project_id"`
+	Type       MonitorType        `json:"type"`
+	Config     []byte             `json:"config"`
+	Enabled    bool               `json:"enabled"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+	Watermark  []byte             `json:"watermark"`
+	LastPollAt pgtype.Timestamptz `json:"last_poll_at"`
 }
 
 type NotificationRule struct {

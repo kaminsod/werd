@@ -84,6 +84,15 @@ func main() {
 
 	replyMonitor := service.NewReplyMonitor(queries, platformService, alertService, readerRegistry, 5*time.Minute)
 
+	// Source monitoring: in-process pollers for thread/subreddit/keyword sources.
+	sourceMonitorRegistry := integration.NewSourceMonitorRegistry()
+	sourceMonitorRegistry.Register("reddit:thread", integration.NewRedditThreadMonitor())
+	sourceMonitorRegistry.Register("reddit:subreddit", integration.NewRedditSubredditMonitor())
+	sourceMonitorRegistry.Register("hn:thread", integration.NewHNThreadMonitor())
+	sourceMonitorRegistry.Register("hn:keywords", integration.NewHNKeywordMonitor())
+
+	sourcePoller := service.NewSourcePoller(queries, platformService, alertService, sourceMonitorRegistry, 60*time.Second)
+
 	// Seed admin user from env vars (idempotent).
 	if cfg.AdminEmail != "" && cfg.AdminPassword != "" {
 		if err := authService.SeedAdmin(ctx, cfg.AdminEmail, cfg.AdminPassword); err != nil {
@@ -91,8 +100,9 @@ func main() {
 		}
 	}
 
-	// Start reply monitor background goroutine.
+	// Start background goroutines.
 	go replyMonitor.Run(ctx)
+	go sourcePoller.Run(ctx)
 
 	// Handlers and router.
 	authHandler := handler.NewAuth(authService)

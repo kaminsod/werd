@@ -27,11 +27,26 @@ export default function SourcesPage() {
   const [formType, setFormType] = useState<MonitorType>("web");
   const [formConfig, setFormConfig] = useState("{}");
   const [formEnabled, setFormEnabled] = useState(true);
+  // Structured config fields for reddit/hn.
+  const [formMode, setFormMode] = useState("subreddit");
+  const [formSubreddit, setFormSubreddit] = useState("");
+  const [formThreadId, setFormThreadId] = useState("");
+  const [formItemId, setFormItemId] = useState("");
+  const [formKeywords, setFormKeywords] = useState("");
+  const [formPollInterval, setFormPollInterval] = useState("300");
+
+  const useStructuredForm = formType === "reddit" || formType === "hn";
 
   function resetForm() {
     setFormType("web");
     setFormConfig("{}");
     setFormEnabled(true);
+    setFormMode("subreddit");
+    setFormSubreddit("");
+    setFormThreadId("");
+    setFormItemId("");
+    setFormKeywords("");
+    setFormPollInterval("300");
     setShowForm(false);
     setEditId(null);
   }
@@ -39,20 +54,65 @@ export default function SourcesPage() {
   function startEdit(src: Source) {
     setEditId(src.id);
     setFormType(src.type);
-    setFormConfig(JSON.stringify(src.config, null, 2));
     setFormEnabled(src.enabled);
     setShowForm(true);
+
+    const cfg = src.config as Record<string, unknown>;
+    if (src.type === "reddit" || src.type === "hn") {
+      setFormMode((cfg.mode as string) || "subreddit");
+      setFormSubreddit((cfg.subreddit as string) || "");
+      setFormThreadId((cfg.thread_id as string) || "");
+      setFormItemId(cfg.item_id ? String(cfg.item_id) : "");
+      setFormKeywords(Array.isArray(cfg.keywords) ? (cfg.keywords as string[]).join(", ") : "");
+      setFormPollInterval(cfg.poll_interval_secs ? String(cfg.poll_interval_secs) : "300");
+      setFormConfig(JSON.stringify(cfg, null, 2));
+    } else {
+      setFormConfig(JSON.stringify(cfg, null, 2));
+    }
+  }
+
+  function buildConfig(): Record<string, unknown> {
+    if (formType === "reddit") {
+      const base: Record<string, unknown> = {
+        mode: formMode,
+        poll_interval_secs: parseInt(formPollInterval) || 300,
+      };
+      if (formMode === "thread") {
+        base.thread_id = formThreadId;
+        base.subreddit = formSubreddit;
+      } else {
+        base.subreddit = formSubreddit;
+        if (formKeywords.trim()) {
+          base.keywords = formKeywords.split(",").map((k) => k.trim()).filter(Boolean);
+        }
+      }
+      return base;
+    }
+    if (formType === "hn") {
+      const base: Record<string, unknown> = {
+        mode: formMode,
+        poll_interval_secs: parseInt(formPollInterval) || 300,
+      };
+      if (formMode === "thread") {
+        base.item_id = parseInt(formItemId) || 0;
+      } else {
+        if (formKeywords.trim()) {
+          base.keywords = formKeywords.split(",").map((k) => k.trim()).filter(Boolean);
+        }
+      }
+      return base;
+    }
+    // Fallback: parse JSON.
+    try {
+      return JSON.parse(formConfig);
+    } catch {
+      return {};
+    }
   }
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    let config: Record<string, unknown>;
-    try {
-      config = JSON.parse(formConfig);
-    } catch {
-      alert("Invalid JSON in config field");
-      return;
-    }
+    const config = buildConfig();
 
     if (editId) {
       updateSource.mutate(
@@ -121,19 +181,88 @@ export default function SourcesPage() {
             </label>
           </div>
 
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-600">
-              Config (JSON)
-              <InfoIcon tooltip={sourceConfigHelp.tooltip}>{sourceConfigHelp.modal}</InfoIcon>
-            </label>
-            <textarea
-              value={formConfig}
-              onChange={(e) => setFormConfig(e.target.value)}
-              rows={4}
-              className="w-full rounded border px-3 py-2 font-mono text-sm"
-              placeholder='{"subreddits": ["golang", "selfhosted"]}'
-            />
-          </div>
+          {useStructuredForm ? (
+            <>
+              {/* Mode selector */}
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-600">Mode</label>
+                <select value={formMode} onChange={(e) => setFormMode(e.target.value)} className="rounded border px-3 py-2 text-sm">
+                  {formType === "reddit" && (
+                    <>
+                      <option value="subreddit">Subreddit (new posts)</option>
+                      <option value="thread">Thread (comments)</option>
+                    </>
+                  )}
+                  {formType === "hn" && (
+                    <>
+                      <option value="keywords">Keywords (new stories)</option>
+                      <option value="thread">Thread (comments)</option>
+                    </>
+                  )}
+                </select>
+              </div>
+
+              {/* Reddit fields */}
+              {formType === "reddit" && formMode === "subreddit" && (
+                <div className="space-y-2">
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-gray-600">Subreddit</label>
+                    <input value={formSubreddit} onChange={(e) => setFormSubreddit(e.target.value)} required placeholder="golang" className="w-full rounded border px-3 py-2 text-sm" />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-gray-600">Keywords (optional, comma-separated)</label>
+                    <input value={formKeywords} onChange={(e) => setFormKeywords(e.target.value)} placeholder="self-hosted, monitoring" className="w-full rounded border px-3 py-2 text-sm" />
+                  </div>
+                </div>
+              )}
+              {formType === "reddit" && formMode === "thread" && (
+                <div className="space-y-2">
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-gray-600">Thread ID</label>
+                    <input value={formThreadId} onChange={(e) => setFormThreadId(e.target.value)} required placeholder="t3_abc123" className="w-full rounded border px-3 py-2 text-sm font-mono" />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-gray-600">Subreddit</label>
+                    <input value={formSubreddit} onChange={(e) => setFormSubreddit(e.target.value)} placeholder="golang" className="w-full rounded border px-3 py-2 text-sm" />
+                  </div>
+                </div>
+              )}
+
+              {/* HN fields */}
+              {formType === "hn" && formMode === "keywords" && (
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-600">Keywords (comma-separated)</label>
+                  <input value={formKeywords} onChange={(e) => setFormKeywords(e.target.value)} placeholder="Show HN, self-hosted" className="w-full rounded border px-3 py-2 text-sm" />
+                </div>
+              )}
+              {formType === "hn" && formMode === "thread" && (
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-600">HN Item ID</label>
+                  <input value={formItemId} onChange={(e) => setFormItemId(e.target.value)} required type="number" placeholder="12345678" className="w-full rounded border px-3 py-2 text-sm font-mono" />
+                </div>
+              )}
+
+              {/* Poll interval */}
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-600">Poll interval (seconds)</label>
+                <input value={formPollInterval} onChange={(e) => setFormPollInterval(e.target.value)} type="number" min="60" className="w-32 rounded border px-3 py-2 text-sm" />
+              </div>
+            </>
+          ) : (
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-600">
+                Config (JSON)
+                <InfoIcon tooltip={sourceConfigHelp.tooltip}>{sourceConfigHelp.modal}</InfoIcon>
+              </label>
+              <textarea
+                value={formConfig}
+                onChange={(e) => setFormConfig(e.target.value)}
+                rows={4}
+                className="w-full rounded border px-3 py-2 font-mono text-sm"
+                placeholder='{"urls": ["https://example.com/blog"]}'
+              />
+            </div>
+          )}
 
           <button
             type="submit"

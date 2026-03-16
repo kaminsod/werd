@@ -130,3 +130,117 @@ wait_for_url() {
   done
   return 1
 }
+
+# ── API helpers ──
+
+# login_and_get_token EMAIL PASSWORD — login and echo the JWT token.
+login_and_get_token() {
+  local email="$1" password="$2"
+  local resp
+  resp=$(curl -sf -X POST "$CADDY_API/api/auth/login" \
+    -H "Content-Type: application/json" \
+    -d "{\"email\":\"$email\",\"password\":\"$password\"}" 2>/dev/null)
+  echo "$resp" | jq -r '.token // empty'
+}
+
+# api_get TOKEN PATH — GET with JWT auth, echo response body.
+api_get() {
+  local token="$1" path="$2"
+  curl -sf -H "Authorization: Bearer $token" "$CADDY_API/api$path" 2>/dev/null
+}
+
+# api_post TOKEN PATH BODY — POST with JWT auth, echo response body.
+api_post() {
+  local token="$1" path="$2" body="$3"
+  curl -sf -X POST -H "Authorization: Bearer $token" \
+    -H "Content-Type: application/json" \
+    -d "$body" "$CADDY_API/api$path" 2>/dev/null
+}
+
+# api_post_status TOKEN PATH BODY — POST and echo HTTP status code.
+api_post_status() {
+  local token="$1" path="$2" body="$3"
+  curl -s -o /dev/null -w '%{http_code}' -X POST -H "Authorization: Bearer $token" \
+    -H "Content-Type: application/json" \
+    -d "$body" "$CADDY_API/api$path" 2>/dev/null
+}
+
+# api_put TOKEN PATH BODY — PUT with JWT auth, echo response body.
+api_put() {
+  local token="$1" path="$2" body="$3"
+  curl -sf -X PUT -H "Authorization: Bearer $token" \
+    -H "Content-Type: application/json" \
+    -d "$body" "$CADDY_API/api$path" 2>/dev/null
+}
+
+# api_put_status TOKEN PATH BODY — PUT and echo HTTP status code.
+api_put_status() {
+  local token="$1" path="$2" body="$3"
+  curl -s -o /dev/null -w '%{http_code}' -X PUT -H "Authorization: Bearer $token" \
+    -H "Content-Type: application/json" \
+    -d "$body" "$CADDY_API/api$path" 2>/dev/null
+}
+
+# api_delete TOKEN PATH — DELETE with JWT auth, echo response body.
+api_delete() {
+  local token="$1" path="$2"
+  curl -sf -X DELETE -H "Authorization: Bearer $token" "$CADDY_API/api$path" 2>/dev/null
+}
+
+# api_delete_status TOKEN PATH — DELETE and echo HTTP status code.
+api_delete_status() {
+  local token="$1" path="$2"
+  curl -s -o /dev/null -w '%{http_code}' -X DELETE \
+    -H "Authorization: Bearer $token" "$CADDY_API/api$path" 2>/dev/null
+}
+
+# assert_json_field RESPONSE FIELD EXPECTED DESCRIPTION — check a JSON field value.
+assert_json_field() {
+  local response="$1" field="$2" expected="$3" desc="$4"
+  local actual
+  actual=$(echo "$response" | jq -r "$field" 2>/dev/null)
+  assert_eq "$expected" "$actual" "$desc"
+}
+
+# generate_test_id — echo a unique identifier based on timestamp + random suffix.
+generate_test_id() {
+  echo "werdtest_$(date +%s)_$(head -c4 /dev/urandom | xxd -p)"
+}
+
+# Shared test state (set by login_setup, used by test suites).
+TEST_TOKEN=""
+TEST_PROJECT_ID=""
+TEST_ADMIN_EMAIL=""
+TEST_ADMIN_PASSWORD=""
+
+# login_setup — create/login admin user and project for test suites.
+# Call this once; subsequent suites reuse the exported vars.
+login_setup() {
+  if [ -n "$TEST_TOKEN" ]; then
+    return 0  # already set up
+  fi
+
+  # Read admin creds from .env.test
+  TEST_ADMIN_EMAIL=$(grep '^WERD_ADMIN_EMAIL=' "$TEST_ENV" | cut -d= -f2)
+  TEST_ADMIN_PASSWORD=$(grep '^WERD_ADMIN_PASSWORD=' "$TEST_ENV" | cut -d= -f2)
+
+  if [ -z "$TEST_ADMIN_EMAIL" ] || [ -z "$TEST_ADMIN_PASSWORD" ]; then
+    echo "ERROR: WERD_ADMIN_EMAIL / WERD_ADMIN_PASSWORD not set in $TEST_ENV"
+    return 1
+  fi
+
+  TEST_TOKEN=$(login_and_get_token "$TEST_ADMIN_EMAIL" "$TEST_ADMIN_PASSWORD")
+  if [ -z "$TEST_TOKEN" ]; then
+    echo "ERROR: Failed to login as admin"
+    return 1
+  fi
+
+  # Create a test project.
+  local resp
+  resp=$(api_post "$TEST_TOKEN" "/projects" '{"name":"Integration Test Project","description":"Automated tests"}')
+  TEST_PROJECT_ID=$(echo "$resp" | jq -r '.id // empty')
+  if [ -z "$TEST_PROJECT_ID" ]; then
+    echo "ERROR: Failed to create test project"
+    return 1
+  fi
+}

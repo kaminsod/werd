@@ -1,6 +1,6 @@
 .PHONY: help dev build test lint clean
 .PHONY: build-api build-web build-monitors
-.PHONY: test-api test-web
+.PHONY: test-api test-web test-browser-hn test-browser-reddit test-browser-bluesky test-browser-all
 .PHONY: dev-api dev-web
 .PHONY: compose-up compose-down compose-ps compose-logs compose-check-dns compose-health
 .PHONY: integration-test integration-test-keep
@@ -32,6 +32,18 @@ test-api: ## Run Go API tests
 
 test-web: ## Run frontend tests
 	$(MAKE) -C src/web test
+
+test-browser-hn: ## Run browser tests against real HN (no creds needed)
+	cd src/browser-service && python3 -m pytest tests/test_hn.py -v --timeout=120
+
+test-browser-reddit: ## Run browser tests against real Reddit (needs WERD_TEST_REDDIT_* env vars)
+	cd src/browser-service && python3 -m pytest tests/test_reddit.py -v --timeout=120
+
+test-browser-bluesky: ## Run browser tests against real Bluesky (needs WERD_TEST_BLUESKY_* env vars)
+	cd src/browser-service && python3 -m pytest tests/test_bluesky.py -v --timeout=120
+
+test-browser-all: ## Run all browser tests against real platforms
+	cd src/browser-service && python3 -m pytest tests/ -v --timeout=120
 
 # ── Lint ──
 

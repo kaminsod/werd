@@ -46,6 +46,13 @@ Thumbs.db
 *.log
 logs/
 
+# ── Python ──
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+
 # ── Coverage & Reports ──
 coverage/
 *.cover

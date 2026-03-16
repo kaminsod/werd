@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 
 from playwright.async_api import Page
 
-from ..models import PublishResponse, ReadResponse, ValidateResponse
+from ..models import CreateAccountResponse, PublishResponse, ReadResponse, ValidateResponse
 
 
 class BasePlatform(ABC):
@@ -18,6 +18,12 @@ class BasePlatform(ABC):
 
     @abstractmethod
     async def read(self, page: Page, credentials: dict, target: str) -> ReadResponse:
+        ...
+
+    @abstractmethod
+    async def create_account(
+        self, page: Page, email: str, username: str, password: str
+    ) -> CreateAccountResponse:
         ...
 
     async def _login(self, page: Page, credentials: dict) -> None:

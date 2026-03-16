@@ -8,6 +8,8 @@ from fastapi import FastAPI, Header, HTTPException
 from .browser import browser_page
 from .config import config
 from .models import (
+    CreateAccountRequest,
+    CreateAccountResponse,
     HealthResponse,
     PublishRequest,
     PublishResponse,
@@ -87,3 +89,29 @@ async def validate(req: ValidateRequest, x_internal_key: str | None = Header(Non
             return await platform.validate(page, req.credentials)
     except Exception as e:
         return ValidateResponse(success=False, error=f"browser error: {traceback.format_exc()}")
+
+
+@app.post("/actions/create-account", response_model=CreateAccountResponse)
+async def create_account(req: CreateAccountRequest, x_internal_key: str | None = Header(None)):
+    _check_auth(x_internal_key)
+
+    try:
+        platform = get_platform(req.platform)
+    except ValueError as e:
+        return CreateAccountResponse(success=False, error=str(e))
+
+    try:
+        async with browser_page(req.options) as page:
+            result = await platform.create_account(page, req.email, req.username, req.password)
+
+            # Screenshot on error.
+            if not result.success and req.options.screenshot_on_error:
+                try:
+                    screenshot = await page.screenshot()
+                    result.screenshot_b64 = base64.b64encode(screenshot).decode()
+                except Exception:
+                    pass
+
+            return result
+    except Exception as e:
+        return CreateAccountResponse(success=False, error=f"browser error: {traceback.format_exc()}")

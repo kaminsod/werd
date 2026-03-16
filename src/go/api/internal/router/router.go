@@ -106,6 +106,7 @@ func New(
 				// Platform connections.
 				r.Get("/connections", platformH.ListConnections)
 				r.Post("/connections", platformH.CreateConnection)
+				r.Post("/connections/create-account", platformH.CreateAccount)
 				r.Get("/connections/{connID}", platformH.GetConnection)
 				r.Put("/connections/{connID}", platformH.UpdateConnection)
 				r.Delete("/connections/{connID}", platformH.DeleteConnection)

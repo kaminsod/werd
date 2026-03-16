@@ -197,6 +197,52 @@ func (s *Platform) DeleteConnection(ctx context.Context, projectID, connID strin
 	})
 }
 
+// CreateAccountAndConnect creates an account on a platform via browser automation,
+// then stores the resulting credentials as a new platform connection.
+func (s *Platform) CreateAccountAndConnect(ctx context.Context, projectID, platform, email, username, password string) (*ConnectionInfo, error) {
+	pid, err := uuid.Parse(projectID)
+	if err != nil {
+		return nil, ErrProjectNotFound
+	}
+
+	// Get the browser adapter for this platform.
+	adapter, err := s.registry.Get(registryKey(platform, "browser"))
+	if err != nil {
+		return nil, ErrBrowserNotConfigured
+	}
+
+	browserAdapter, ok := adapter.(*integration.BrowserAdapter)
+	if !ok {
+		return nil, fmt.Errorf("adapter for %s:browser does not support account creation", platform)
+	}
+
+	result, err := browserAdapter.CreateAccount(ctx, email, username, password)
+	if err != nil {
+		return nil, fmt.Errorf("account creation failed: %w", err)
+	}
+
+	if !result.Success {
+		return nil, fmt.Errorf("account creation failed: %s", result.Error)
+	}
+
+	// Marshal credentials from the response.
+	creds, err := json.Marshal(result.Credentials)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling credentials: %w", err)
+	}
+
+	// Store as a browser connection (the account was created via browser).
+	conn, err := s.q.CreatePlatformConnection(ctx, storage.CreatePlatformConnectionParams{
+		ProjectID: pid, Platform: platform, Method: "browser",
+		Credentials: creds, Enabled: true,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("storing connection: %w", err)
+	}
+
+	return connInfoFromCreate(conn), nil
+}
+
 // GetConnectionForPublish fetches the enabled connection for a platform (prefers API over browser).
 // Returns credentials, method, and the registry key for adapter lookup.
 func (s *Platform) GetConnectionForPublish(ctx context.Context, projectID, platform string) (*ConnectionWithCreds, error) {

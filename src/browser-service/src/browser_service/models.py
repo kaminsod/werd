@@ -55,5 +55,21 @@ class ValidateResponse(BaseModel):
     error: str = ""
 
 
+class CreateAccountRequest(BaseModel):
+    platform: str
+    email: str = ""
+    username: str
+    password: str
+    options: ActionOptions = ActionOptions()
+
+
+class CreateAccountResponse(BaseModel):
+    success: bool
+    username: str = ""
+    credentials: dict = {}
+    error: str = ""
+    screenshot_b64: str | None = None
+
+
 class HealthResponse(BaseModel):
     status: str = "ok"

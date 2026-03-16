@@ -54,6 +54,22 @@ type browserValidateResponse struct {
 	Error   string `json:"error"`
 }
 
+type browserCreateAccountRequest struct {
+	Platform string         `json:"platform"`
+	Email    string         `json:"email"`
+	Username string         `json:"username"`
+	Password string         `json:"password"`
+	Options  map[string]any `json:"options"`
+}
+
+type BrowserCreateAccountResponse struct {
+	Success      bool           `json:"success"`
+	Username     string         `json:"username"`
+	Credentials  map[string]any `json:"credentials"`
+	Error        string         `json:"error"`
+	ScreenshotB64 string        `json:"screenshot_b64"`
+}
+
 func (b *BrowserAdapter) ValidateCredentials(ctx context.Context, credentials json.RawMessage) error {
 	var creds map[string]any
 	if err := json.Unmarshal(credentials, &creds); err != nil {
@@ -144,4 +160,38 @@ func (b *BrowserAdapter) Publish(ctx context.Context, content PublishContent, cr
 		PlatformPostID: result.PostID,
 		URL:            result.URL,
 	}, nil
+}
+
+// CreateAccount creates an account on the platform via browser automation.
+func (b *BrowserAdapter) CreateAccount(ctx context.Context, email, username, password string) (*BrowserCreateAccountResponse, error) {
+	req := browserCreateAccountRequest{
+		Platform: b.platform,
+		Email:    email,
+		Username: username,
+		Password: password,
+		Options:  map[string]any{"headless": true, "timeout_secs": 60, "screenshot_on_error": true},
+	}
+
+	body, _ := json.Marshal(req)
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		b.serviceURL+"/actions/create-account", bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("X-Internal-Key", b.internalAPIKey)
+
+	resp, err := b.httpCli.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("browser service unreachable: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	var result BrowserCreateAccountResponse
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return nil, fmt.Errorf("browser: invalid response: %w", err)
+	}
+
+	return &result, nil
 }

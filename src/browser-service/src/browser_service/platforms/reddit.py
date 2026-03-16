@@ -3,7 +3,8 @@
 from playwright.async_api import Page
 
 from .base import BasePlatform
-from ..models import PublishResponse, ReadResponse, ReadItem, ValidateResponse
+from ..models import CreateAccountResponse, PublishResponse, ReadResponse, ReadItem, ValidateResponse
+from ..captcha import solve_captcha, verify_email
 
 
 class RedditPlatform(BasePlatform):
@@ -98,3 +99,81 @@ class RedditPlatform(BasePlatform):
             return ReadResponse(success=True, items=items)
         except Exception as e:
             return ReadResponse(success=False, error=str(e))
+
+    async def create_account(
+        self, page: Page, email: str, username: str, password: str
+    ) -> CreateAccountResponse:
+        """Create a new Reddit account via the registration page.
+
+        Reddit's signup flow (new reddit):
+        1. Navigate to reddit.com/register
+        2. Enter email → Continue
+        3. Enter username + password → Continue
+        4. CAPTCHA verification (mocked)
+        5. Email verification (mocked)
+        """
+        try:
+            await page.goto("https://www.reddit.com/register")
+            await page.wait_for_timeout(2000)
+
+            # Step 1: Email.
+            email_input = page.locator('input[name="email"], #regEmail')
+            if await email_input.count() > 0:
+                await email_input.fill(email)
+                # Look for continue/next button.
+                continue_btn = page.locator('button:has-text("Continue"), button:has-text("Next")')
+                if await continue_btn.count() > 0:
+                    await continue_btn.first.click()
+                    await page.wait_for_timeout(2000)
+
+            # Step 2: Username and password.
+            username_input = page.locator('input[name="username"], #regUsername')
+            if await username_input.count() > 0:
+                await username_input.fill(username)
+
+            password_input = page.locator('input[name="password"], #regPassword')
+            if await password_input.count() > 0:
+                await password_input.fill(password)
+
+            # Step 3: Handle CAPTCHA (mock — returns immediately).
+            await solve_captcha(page, "reddit")
+
+            # Step 4: Submit.
+            signup_btn = page.locator('button:has-text("Sign Up"), button:has-text("Continue"), button[type="submit"]')
+            if await signup_btn.count() > 0:
+                await signup_btn.first.click()
+                await page.wait_for_timeout(5000)
+
+            # Step 5: Handle email verification (mock).
+            await verify_email(email, "reddit")
+
+            # Check for success indicators.
+            current_url = page.url
+            if "reddit.com" in current_url and "/register" not in current_url:
+                return CreateAccountResponse(
+                    success=True,
+                    username=username,
+                    credentials={
+                        "username": username,
+                        "password": password,
+                    },
+                )
+
+            # Check for error messages on the page.
+            body_text = await page.locator("body").inner_text()
+            error_indicators = [
+                "username is taken",
+                "that username is already taken",
+                "invalid email",
+                "password must be",
+            ]
+            for indicator in error_indicators:
+                if indicator in body_text.lower():
+                    return CreateAccountResponse(success=False, error=indicator)
+
+            return CreateAccountResponse(
+                success=False,
+                error=f"signup may have been blocked by captcha or verification — URL: {current_url}",
+            )
+        except Exception as e:
+            return CreateAccountResponse(success=False, error=str(e))

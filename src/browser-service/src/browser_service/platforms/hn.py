@@ -3,7 +3,7 @@
 from playwright.async_api import Page
 
 from .base import BasePlatform
-from ..models import PublishResponse, ReadResponse, ReadItem, ValidateResponse
+from ..models import CreateAccountResponse, PublishResponse, ReadResponse, ReadItem, ValidateResponse
 
 
 class HNPlatform(BasePlatform):
@@ -111,3 +111,62 @@ class HNPlatform(BasePlatform):
             return ReadResponse(success=True, items=items)
         except Exception as e:
             return ReadResponse(success=False, error=str(e))
+
+    async def create_account(
+        self, page: Page, email: str, username: str, password: str
+    ) -> CreateAccountResponse:
+        """Create a new HN account.
+
+        HN's login page has two forms:
+        - Top: login (first set of acct/pw inputs + first submit)
+        - Bottom: create account (second set of acct/pw inputs + second submit)
+        """
+        try:
+            await page.goto(f"{self.BASE_URL}/login")
+
+            # Get the second set of inputs (create account section).
+            acct_inputs = await page.locator('input[name="acct"]').all()
+            pw_inputs = await page.locator('input[name="pw"]').all()
+            submit_buttons = await page.locator('input[type="submit"]').all()
+
+            if len(acct_inputs) < 2 or len(pw_inputs) < 2 or len(submit_buttons) < 2:
+                return CreateAccountResponse(
+                    success=False,
+                    error="could not find create account form — page structure may have changed",
+                )
+
+            # Fill the create account form (second set of inputs).
+            await acct_inputs[1].fill(username)
+            await pw_inputs[1].fill(password)
+            await submit_buttons[1].click()
+
+            # Wait for navigation.
+            await page.wait_for_timeout(3000)
+
+            # Check if account was created (should redirect to home or show user nav).
+            if await page.locator(f'a[href="user?id={username}"]').count() > 0:
+                return CreateAccountResponse(
+                    success=True,
+                    username=username,
+                    credentials={"username": username, "password": password},
+                )
+
+            # Check for error messages.
+            body_text = await page.locator("body").inner_text()
+            if "that username is taken" in body_text.lower():
+                return CreateAccountResponse(success=False, error="username is already taken")
+
+            # If we're on the home page, the account was likely created.
+            if "/news" in page.url or page.url.endswith("/"):
+                return CreateAccountResponse(
+                    success=True,
+                    username=username,
+                    credentials={"username": username, "password": password},
+                )
+
+            return CreateAccountResponse(
+                success=False,
+                error=f"unknown result — page URL: {page.url}",
+            )
+        except Exception as e:
+            return CreateAccountResponse(success=False, error=str(e))

@@ -41,6 +41,18 @@ type updateConnectionRequest struct {
 	Enabled     *bool           `json:"enabled"`
 }
 
+type createAccountRequest struct {
+	Platform string `json:"platform"`
+	Email    string `json:"email"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+type createAccountResponse struct {
+	Connection connectionResponse `json:"connection"`
+	Message    string             `json:"message"`
+}
+
 type connectionResponse struct {
 	ID        string    `json:"id"`
 	ProjectID string    `json:"project_id"`
@@ -239,6 +251,50 @@ func (h *PlatformHandler) DeleteConnection(w http.ResponseWriter, r *http.Reques
 	}
 
 	writeJSON(w, http.StatusOK, messageResponse{Message: "connection deleted"})
+}
+
+// CreateAccount handles POST /projects/{id}/connections/create-account.
+func (h *PlatformHandler) CreateAccount(w http.ResponseWriter, r *http.Request) {
+	projectID := middleware.ProjectIDFromContext(r.Context())
+	role := middleware.ProjectRoleFromContext(r.Context())
+
+	if !requireRole(role, storage.ProjectRoleOwner, storage.ProjectRoleAdmin) {
+		writeJSON(w, http.StatusForbidden, messageResponse{Message: "admin or owner role required"})
+		return
+	}
+
+	var req createAccountRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, messageResponse{Message: "invalid request body"})
+		return
+	}
+
+	if req.Platform == "" {
+		writeJSON(w, http.StatusBadRequest, messageResponse{Message: "platform is required"})
+		return
+	}
+	if req.Username == "" || req.Password == "" {
+		writeJSON(w, http.StatusBadRequest, messageResponse{Message: "username and password are required"})
+		return
+	}
+
+	conn, err := h.platformSvc.CreateAccountAndConnect(r.Context(), projectID, req.Platform, req.Email, req.Username, req.Password)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrBrowserNotConfigured):
+			writeJSON(w, http.StatusBadRequest, messageResponse{Message: err.Error()})
+		case errors.Is(err, service.ErrUnsupportedPlatform):
+			writeJSON(w, http.StatusBadRequest, messageResponse{Message: "unsupported platform"})
+		default:
+			writeJSON(w, http.StatusBadRequest, messageResponse{Message: err.Error()})
+		}
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, createAccountResponse{
+		Connection: *connInfoToResponse(conn),
+		Message:    fmt.Sprintf("account created on %s and connected", req.Platform),
+	})
 }
 
 // ============================================================================

@@ -28,6 +28,20 @@ export function useUpdateConnection(projectId: string) {
   });
 }
 
+interface CreateAccountResult {
+  connection: Connection;
+  message: string;
+}
+
+export function useCreateAccount(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { platform: string; email?: string; username: string; password: string }) =>
+      apiMutate<CreateAccountResult>(`/projects/${projectId}/connections/create-account`, "POST", data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["projects", projectId, "connections"] }),
+  });
+}
+
 export function useDeleteConnection(projectId: string) {
   const qc = useQueryClient();
   return useMutation({

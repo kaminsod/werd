@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { useParams } from "react-router";
-import { useConnections, useCreateConnection, useUpdateConnection, useDeleteConnection } from "@/hooks/use-connections";
+import { useConnections, useCreateConnection, useUpdateConnection, useDeleteConnection, useCreateAccount } from "@/hooks/use-connections";
 import InfoIcon from "@/components/info-icon";
 import { platformCredentials as credsHelp } from "@/lib/help-content";
 import type { Connection, ConnectionMethod } from "@/types/api";
@@ -53,12 +53,20 @@ export default function ConnectionsPage() {
   const updateConn = useUpdateConnection(projectId!);
   const deleteConn = useDeleteConnection(projectId!);
 
+  const createAccount = useCreateAccount(projectId!);
+
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [formPlatform, setFormPlatform] = useState("bluesky");
   const [formMethod, setFormMethod] = useState<ConnectionMethod>("api");
   const [formCreds, setFormCreds] = useState("");
   const [formEnabled, setFormEnabled] = useState(true);
+
+  const [showCreateAccount, setShowCreateAccount] = useState(false);
+  const [caPlatform, setCaPlatform] = useState("bluesky");
+  const [caEmail, setCaEmail] = useState("");
+  const [caUsername, setCaUsername] = useState("");
+  const [caPassword, setCaPassword] = useState("");
 
   function resetForm() {
     setFormPlatform("bluesky");
@@ -107,6 +115,21 @@ export default function ConnectionsPage() {
     }
   }
 
+  function handleCreateAccount(e: FormEvent) {
+    e.preventDefault();
+    createAccount.mutate(
+      { platform: caPlatform, email: caEmail || undefined, username: caUsername, password: caPassword },
+      {
+        onSuccess: () => {
+          setShowCreateAccount(false);
+          setCaEmail("");
+          setCaUsername("");
+          setCaPassword("");
+        },
+      },
+    );
+  }
+
   if (isLoading) return <p className="text-gray-500">Loading connections...</p>;
   if (error) return <p className="text-red-600">Error: {error.message}</p>;
 
@@ -114,13 +137,66 @@ export default function ConnectionsPage() {
     <div>
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-xl font-semibold">Platform Connections</h2>
-        <button
-          onClick={() => { resetForm(); setShowForm(!showForm); }}
-          className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-        >
-          {showForm && !editId ? "Cancel" : "Add Connection"}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => { setShowCreateAccount(!showCreateAccount); setShowForm(false); resetForm(); }}
+            className="rounded bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
+          >
+            {showCreateAccount ? "Cancel" : "Create Account"}
+          </button>
+          <button
+            onClick={() => { resetForm(); setShowForm(!showForm); setShowCreateAccount(false); }}
+            className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          >
+            {showForm && !editId ? "Cancel" : "Add Connection"}
+          </button>
+        </div>
       </div>
+
+      {showCreateAccount && (
+        <form onSubmit={handleCreateAccount} className="mb-6 space-y-3 rounded border bg-green-50 p-4">
+          <h3 className="text-sm font-medium">Create Account via Browser Automation</h3>
+          <p className="text-xs text-gray-500">Creates a new account on the selected platform and automatically adds it as a browser connection.</p>
+
+          {createAccount.error && (
+            <p className="text-sm text-red-600">{createAccount.error.message}</p>
+          )}
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-600">Platform</label>
+            <select value={caPlatform} onChange={(e) => setCaPlatform(e.target.value)} className="rounded border px-3 py-2 text-sm">
+              {PLATFORMS.map((p) => (
+                <option key={p} value={p}>{PLATFORM_LABELS[p] ?? p}</option>
+              ))}
+            </select>
+          </div>
+
+          {caPlatform !== "hn" && (
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-600">Email {caPlatform === "hn" ? "(not used)" : ""}</label>
+              <input value={caEmail} onChange={(e) => setCaEmail(e.target.value)} type="email" placeholder="user@example.com" className="w-full rounded border px-3 py-2 text-sm" />
+            </div>
+          )}
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-600">Username</label>
+            <input value={caUsername} onChange={(e) => setCaUsername(e.target.value)} required placeholder="myusername" className="w-full rounded border px-3 py-2 text-sm" />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-600">Password</label>
+            <input value={caPassword} onChange={(e) => setCaPassword(e.target.value)} required type="password" placeholder="..." className="w-full rounded border px-3 py-2 text-sm" />
+          </div>
+
+          <button
+            type="submit"
+            disabled={createAccount.isPending}
+            className="rounded bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+          >
+            {createAccount.isPending ? "Creating..." : "Create Account & Connect"}
+          </button>
+        </form>
+      )}
 
       {showForm && (
         <form onSubmit={handleSubmit} className="mb-6 space-y-3 rounded border bg-gray-50 p-4">

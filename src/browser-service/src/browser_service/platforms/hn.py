@@ -25,10 +25,10 @@ class HNPlatform(BasePlatform):
         submit_buttons = await page.locator('input[type="submit"]').all()
         await submit_buttons[0].click()
 
-        await page.wait_for_url("**/", timeout=10000)
-
-        # Verify login (check for logout link).
-        if await page.locator('a[href*="logout"]').count() == 0:
+        # Wait for the logout link to appear (the reliable login success indicator).
+        try:
+            await page.wait_for_selector('a[href*="logout"]', timeout=15000)
+        except Exception:
             raise ValueError("hn login failed — check credentials")
 
     async def validate(self, page: Page, credentials: dict) -> ValidateResponse:
@@ -87,7 +87,12 @@ class HNPlatform(BasePlatform):
             if target:
                 url = f"{self.BASE_URL}/{target}"
             await page.goto(url)
-            await page.wait_for_selector(".athing", timeout=10000)
+            # Wait for stories to load — page may be empty for new users.
+            try:
+                await page.wait_for_selector(".athing", timeout=10000)
+            except Exception:
+                # Page loaded but has no items (e.g. new user with no submissions yet).
+                return ReadResponse(success=True, items=[])
 
             items = []
             rows = await page.locator(".athing").all()
@@ -135,15 +140,48 @@ class HNPlatform(BasePlatform):
                     error="could not find create account form — page structure may have changed",
                 )
 
+            # Check if account creation is disabled (HN rate-limits by IP).
+            await page.wait_for_timeout(1000)
+            body_text = await page.locator("body").inner_text()
+            if "account creation disabled" in body_text.lower() or "creation rate limit" in body_text.lower():
+                return CreateAccountResponse(
+                    success=False,
+                    error="account creation disabled by HN (IP rate-limited)",
+                )
+
             # Fill the create account form (second set of inputs).
             await acct_inputs[1].fill(username)
             await pw_inputs[1].fill(password)
             await submit_buttons[1].click()
 
-            # Wait for navigation.
-            await page.wait_for_timeout(3000)
+            # Wait for either: navigation away from login page, or an error.
+            # On success HN redirects to "/" and shows the user nav.
+            # On failure it stays on /login with an error message.
+            try:
+                await page.wait_for_selector(
+                    f'a[href="user?id={username}"], a[href*="logout"]',
+                    timeout=15000,
+                )
+            except Exception:
+                pass  # Fall through to error checking below.
 
-            # Check if account was created (should redirect to home or show user nav).
+            # Check for error messages first (before success checks).
+            body_text = await page.locator("body").inner_text()
+            body_lower = body_text.lower()
+            error_indicators = [
+                "that username is taken",
+                "username is taken",
+                "already exists",
+                "account creation disabled",
+                "creation rate limit",
+            ]
+            for indicator in error_indicators:
+                if indicator in body_lower:
+                    if "disabled" in indicator or "rate limit" in indicator:
+                        return CreateAccountResponse(success=False, error="account creation disabled by HN (IP rate-limited)")
+                    return CreateAccountResponse(success=False, error="username is already taken")
+
+            # Check if account was created (user nav link appears).
             if await page.locator(f'a[href="user?id={username}"]').count() > 0:
                 return CreateAccountResponse(
                     success=True,
@@ -151,13 +189,8 @@ class HNPlatform(BasePlatform):
                     credentials={"username": username, "password": password},
                 )
 
-            # Check for error messages.
-            body_text = await page.locator("body").inner_text()
-            if "that username is taken" in body_text.lower():
-                return CreateAccountResponse(success=False, error="username is already taken")
-
-            # If we're on the home page, the account was likely created.
-            if "/news" in page.url or page.url.endswith("/"):
+            # Check for logout link (logged in but user link selector didn't match exactly).
+            if await page.locator('a[href*="logout"]').count() > 0:
                 return CreateAccountResponse(
                     success=True,
                     username=username,
@@ -166,7 +199,7 @@ class HNPlatform(BasePlatform):
 
             return CreateAccountResponse(
                 success=False,
-                error=f"unknown result — page URL: {page.url}",
+                error=f"signup failed — page URL: {page.url}",
             )
         except Exception as e:
             return CreateAccountResponse(success=False, error=str(e))

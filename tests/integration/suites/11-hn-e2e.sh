@@ -27,6 +27,10 @@ if [ -n "$HN_CONN_ID" ]; then
   pass "Create HN account and connection (id=$HN_CONN_ID)"
 else
   error_msg=$(echo "$create_resp" | jq -r '.message // .error // empty')
+  if echo "$error_msg" | grep -qi "rate-limited\|disabled"; then
+    skip "HN account creation rate-limited — skipping remaining HN E2E tests"
+    return
+  fi
   fail "Create HN account (error: $error_msg)"
   # Cannot proceed without account — skip remaining tests.
   return

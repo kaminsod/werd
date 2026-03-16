@@ -147,11 +147,12 @@ func (ns NullKeywordMatchType) Value() (driver.Value, error) {
 type MonitorType string
 
 const (
-	MonitorTypeReddit MonitorType = "reddit"
-	MonitorTypeHn     MonitorType = "hn"
-	MonitorTypeWeb    MonitorType = "web"
-	MonitorTypeRss    MonitorType = "rss"
-	MonitorTypeGithub MonitorType = "github"
+	MonitorTypeReddit  MonitorType = "reddit"
+	MonitorTypeHn      MonitorType = "hn"
+	MonitorTypeWeb     MonitorType = "web"
+	MonitorTypeRss     MonitorType = "rss"
+	MonitorTypeGithub  MonitorType = "github"
+	MonitorTypeBluesky MonitorType = "bluesky"
 )
 
 func (e *MonitorType) Scan(src interface{}) error {
@@ -235,12 +236,13 @@ func (ns NullNotificationDestination) Value() (driver.Value, error) {
 type NotificationSourceType string
 
 const (
-	NotificationSourceTypeReddit NotificationSourceType = "reddit"
-	NotificationSourceTypeHn     NotificationSourceType = "hn"
-	NotificationSourceTypeWeb    NotificationSourceType = "web"
-	NotificationSourceTypeRss    NotificationSourceType = "rss"
-	NotificationSourceTypeGithub NotificationSourceType = "github"
-	NotificationSourceTypeAll    NotificationSourceType = "all"
+	NotificationSourceTypeReddit  NotificationSourceType = "reddit"
+	NotificationSourceTypeHn      NotificationSourceType = "hn"
+	NotificationSourceTypeWeb     NotificationSourceType = "web"
+	NotificationSourceTypeRss     NotificationSourceType = "rss"
+	NotificationSourceTypeGithub  NotificationSourceType = "github"
+	NotificationSourceTypeAll     NotificationSourceType = "all"
+	NotificationSourceTypeBluesky NotificationSourceType = "bluesky"
 )
 
 func (e *NotificationSourceType) Scan(src interface{}) error {

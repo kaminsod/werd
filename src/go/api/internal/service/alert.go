@@ -272,7 +272,7 @@ func (s *Alert) matchKeywords(ctx context.Context, projectID uuid.UUID, title, c
 func parseMonitorType(s string) (storage.MonitorType, error) {
 	switch storage.MonitorType(s) {
 	case storage.MonitorTypeReddit, storage.MonitorTypeHn, storage.MonitorTypeWeb,
-		storage.MonitorTypeRss, storage.MonitorTypeGithub:
+		storage.MonitorTypeRss, storage.MonitorTypeGithub, storage.MonitorTypeBluesky:
 		return storage.MonitorType(s), nil
 	default:
 		return "", fmt.Errorf("invalid monitor type: %s", s)

@@ -61,7 +61,7 @@ export interface AlertListResponse {
 
 export type AlertSeverity = "low" | "medium" | "high" | "critical";
 export type AlertStatus = "new" | "seen" | "triaged" | "dismissed" | "responded";
-export type MonitorType = "reddit" | "hn" | "web" | "rss" | "github";
+export type MonitorType = "reddit" | "hn" | "web" | "rss" | "github" | "bluesky";
 
 export interface Keyword {
   id: string;

@@ -88,8 +88,11 @@ func main() {
 	sourceMonitorRegistry := integration.NewSourceMonitorRegistry()
 	sourceMonitorRegistry.Register("reddit:thread", integration.NewRedditThreadMonitor())
 	sourceMonitorRegistry.Register("reddit:subreddit", integration.NewRedditSubredditMonitor())
+	sourceMonitorRegistry.Register("reddit:account", integration.NewRedditAccountMonitor())
 	sourceMonitorRegistry.Register("hn:thread", integration.NewHNThreadMonitor())
 	sourceMonitorRegistry.Register("hn:keywords", integration.NewHNKeywordMonitor())
+	sourceMonitorRegistry.Register("hn:account", integration.NewHNAccountMonitor())
+	sourceMonitorRegistry.Register("bluesky:account", integration.NewBlueskyAccountMonitor())
 
 	sourcePoller := service.NewSourcePoller(queries, platformService, alertService, sourceMonitorRegistry, 60*time.Second)
 

@@ -89,15 +89,24 @@ func (p *SourcePoller) poll(ctx context.Context) {
 			continue
 		}
 
-		// Get credentials if needed (reddit needs creds, hn doesn't).
+		// Get credentials if needed.
 		var creds json.RawMessage
-		if source.Type == storage.MonitorTypeReddit {
+		switch source.Type {
+		case storage.MonitorTypeReddit:
 			conn, err := p.platformSvc.GetConnectionForPublish(ctx, source.ProjectID.String(), "reddit")
 			if err != nil {
 				log.Printf("source poller: no reddit credentials for project %s: %v", source.ProjectID, err)
 				continue
 			}
 			creds = conn.Credentials
+		case storage.MonitorTypeBluesky:
+			conn, err := p.platformSvc.GetConnectionForPublish(ctx, source.ProjectID.String(), "bluesky")
+			if err != nil {
+				log.Printf("source poller: no bluesky credentials for project %s: %v", source.ProjectID, err)
+				continue
+			}
+			creds = conn.Credentials
+		// hn, web, rss, github: no credentials needed
 		}
 
 		// Check if this is a first poll (no watermark = initialization).

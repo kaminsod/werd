@@ -5,11 +5,12 @@ import InfoIcon from "@/components/info-icon";
 import { sourceConfig as sourceConfigHelp } from "@/lib/help-content";
 import type { MonitorType, Source } from "@/types/api";
 
-const SOURCE_TYPES: MonitorType[] = ["reddit", "hn", "web", "rss", "github"];
+const SOURCE_TYPES: MonitorType[] = ["reddit", "hn", "bluesky", "web", "rss", "github"];
 
 const TYPE_COLORS: Record<MonitorType, string> = {
   reddit: "bg-orange-100 text-orange-700",
   hn: "bg-amber-100 text-amber-700",
+  bluesky: "bg-sky-100 text-sky-700",
   web: "bg-blue-100 text-blue-700",
   rss: "bg-green-100 text-green-700",
   github: "bg-gray-100 text-gray-700",
@@ -35,7 +36,10 @@ export default function SourcesPage() {
   const [formKeywords, setFormKeywords] = useState("");
   const [formPollInterval, setFormPollInterval] = useState("300");
 
-  const useStructuredForm = formType === "reddit" || formType === "hn";
+  const useStructuredForm = formType === "reddit" || formType === "hn" || formType === "bluesky";
+  const [formCheckInbox, setFormCheckInbox] = useState(true);
+  const [formCheckMentions, setFormCheckMentions] = useState(true);
+  const [formUsername, setFormUsername] = useState("");
 
   function resetForm() {
     setFormType("web");
@@ -80,6 +84,9 @@ export default function SourcesPage() {
       if (formMode === "thread") {
         base.thread_id = formThreadId;
         base.subreddit = formSubreddit;
+      } else if (formMode === "account") {
+        base.check_inbox = formCheckInbox;
+        base.check_mentions = formCheckMentions;
       } else {
         base.subreddit = formSubreddit;
         if (formKeywords.trim()) {
@@ -91,16 +98,24 @@ export default function SourcesPage() {
     if (formType === "hn") {
       const base: Record<string, unknown> = {
         mode: formMode,
-        poll_interval_secs: parseInt(formPollInterval) || 300,
+        poll_interval_secs: parseInt(formPollInterval) || (formMode === "account" ? 600 : 300),
       };
       if (formMode === "thread") {
         base.item_id = parseInt(formItemId) || 0;
+      } else if (formMode === "account") {
+        base.username = formUsername;
       } else {
         if (formKeywords.trim()) {
           base.keywords = formKeywords.split(",").map((k) => k.trim()).filter(Boolean);
         }
       }
       return base;
+    }
+    if (formType === "bluesky") {
+      return {
+        mode: formMode,
+        poll_interval_secs: parseInt(formPollInterval) || 300,
+      };
     }
     // Fallback: parse JSON.
     try {
@@ -191,13 +206,18 @@ export default function SourcesPage() {
                     <>
                       <option value="subreddit">Subreddit (new posts)</option>
                       <option value="thread">Thread (comments)</option>
+                      <option value="account">Account (inbox & mentions)</option>
                     </>
                   )}
                   {formType === "hn" && (
                     <>
                       <option value="keywords">Keywords (new stories)</option>
                       <option value="thread">Thread (comments)</option>
+                      <option value="account">Account (submission replies)</option>
                     </>
+                  )}
+                  {formType === "bluesky" && (
+                    <option value="account">Account (notifications)</option>
                   )}
                 </select>
               </div>
@@ -227,6 +247,18 @@ export default function SourcesPage() {
                   </div>
                 </div>
               )}
+              {formType === "reddit" && formMode === "account" && (
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2">
+                    <input type="checkbox" checked={formCheckInbox} onChange={(e) => setFormCheckInbox(e.target.checked)} />
+                    <span className="text-sm">Check inbox (replies & messages)</span>
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input type="checkbox" checked={formCheckMentions} onChange={(e) => setFormCheckMentions(e.target.checked)} />
+                    <span className="text-sm">Check mentions (u/username)</span>
+                  </label>
+                </div>
+              )}
 
               {/* HN fields */}
               {formType === "hn" && formMode === "keywords" && (
@@ -240,6 +272,17 @@ export default function SourcesPage() {
                   <label className="mb-1 block text-xs font-medium text-gray-600">HN Item ID</label>
                   <input value={formItemId} onChange={(e) => setFormItemId(e.target.value)} required type="number" placeholder="12345678" className="w-full rounded border px-3 py-2 text-sm font-mono" />
                 </div>
+              )}
+              {formType === "hn" && formMode === "account" && (
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-600">HN Username</label>
+                  <input value={formUsername} onChange={(e) => setFormUsername(e.target.value)} required placeholder="dang" className="w-full rounded border px-3 py-2 text-sm" />
+                </div>
+              )}
+
+              {/* Bluesky: account mode has no extra fields (uses platform connection creds) */}
+              {formType === "bluesky" && formMode === "account" && (
+                <p className="text-xs text-gray-500">Monitors replies, mentions, and quotes on your Bluesky account. Credentials are taken from your Bluesky platform connection.</p>
               )}
 
               {/* Poll interval */}

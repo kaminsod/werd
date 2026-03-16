@@ -113,3 +113,35 @@ func (r *HNReader) fetchItem(ctx context.Context, id int) (*hnItem, error) {
 
 	return &item, nil
 }
+
+// hnUser represents the HN user API response.
+type hnUser struct {
+	ID        string `json:"id"`
+	Submitted []int  `json:"submitted"`
+}
+
+// fetchUser fetches an HN user profile.
+func (r *HNReader) fetchUser(ctx context.Context, username string) (*hnUser, error) {
+	url := fmt.Sprintf("%s/user/%s.json", r.baseURL, username)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := r.httpCli.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("user %s: status %d", username, resp.StatusCode)
+	}
+
+	var user hnUser
+	if err := json.Unmarshal(body, &user); err != nil {
+		return nil, err
+	}
+	return &user, nil
+}

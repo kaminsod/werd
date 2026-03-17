@@ -97,7 +97,7 @@ export const navProcessing: HelpEntry = {
 };
 
 export const navRules: HelpEntry = {
-  tooltip: "How and when you get notified",
+  tooltip: "Where and when alerts trigger notifications",
   modal: (
     <>
       <h3 className="mb-2 font-semibold">Notification Rules</h3>

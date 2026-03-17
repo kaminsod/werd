@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { useParams } from "react-router";
+import { useParams, Link } from "react-router";
 import { useAlerts, useUpdateAlertStatus } from "@/hooks/use-alerts";
+import { useSources } from "@/hooks/use-sources";
 import InfoIcon from "@/components/info-icon";
 import { alertSeverity as severityHelp, alertStatus as statusHelp } from "@/lib/help-content";
-import type { Alert, AlertSeverity, AlertStatus } from "@/types/api";
+import type { Alert, AlertSeverity, AlertStatus, Source } from "@/types/api";
 
 const SEVERITY_COLORS: Record<AlertSeverity, string> = {
   critical: "bg-red-100 text-red-800",
@@ -38,6 +39,7 @@ export default function AlertsPage() {
     offset: page * PAGE_SIZE,
   });
 
+  const { data: sources } = useSources(projectId!);
   const updateStatus = useUpdateAlertStatus(projectId!);
 
   function handleStatusChange(alertId: string, status: string) {
@@ -95,6 +97,7 @@ export default function AlertsPage() {
             <AlertRow
               key={alert.id}
               alert={alert}
+              sources={sources}
               expanded={expandedId === alert.id}
               onToggle={() => setExpandedId(expandedId === alert.id ? null : alert.id)}
               onStatusChange={handleStatusChange}
@@ -129,13 +132,28 @@ export default function AlertsPage() {
   );
 }
 
+function sourceLabel(alert: Alert, sources?: Source[]): string {
+  if (alert.monitor_source_id && sources) {
+    const src = sources.find((s) => s.id === alert.monitor_source_id);
+    if (src) {
+      const cfg = src.config;
+      const detail =
+        cfg.username ?? cfg.subreddit ?? cfg.item_id ?? cfg.url ?? null;
+      return detail ? `${src.type} — ${detail}` : src.type;
+    }
+  }
+  return alert.source_type;
+}
+
 function AlertRow({
   alert,
+  sources,
   expanded,
   onToggle,
   onStatusChange,
 }: {
   alert: Alert;
+  sources?: Source[];
   expanded: boolean;
   onToggle: () => void;
   onStatusChange: (alertId: string, status: string) => void;
@@ -191,9 +209,14 @@ function AlertRow({
             </p>
           )}
 
+          <div className="mb-3">
+            <Link to="../sources" className="text-xs font-medium text-blue-600 hover:underline">Source: </Link>
+            <span className="text-xs text-gray-600">{sourceLabel(alert, sources)}</span>
+          </div>
+
           {alert.matched_keywords.length > 0 && (
             <div className="mb-3">
-              <span className="text-xs font-medium text-gray-500">Matched keywords: </span>
+              <Link to="../keywords" className="text-xs font-medium text-blue-600 hover:underline">Matched keywords: </Link>
               {alert.matched_keywords.map((kw) => (
                 <span key={kw} className="mr-1 rounded bg-yellow-50 px-1.5 py-0.5 text-xs text-yellow-700">
                   {kw}
@@ -215,7 +238,7 @@ function AlertRow({
 
           {alert.classification_reason && (
             <div className="mb-3">
-              <span className="text-xs font-medium text-gray-500">Classification: </span>
+              <Link to="../processing" className="text-xs font-medium text-blue-600 hover:underline">Classification: </Link>
               <span className="text-xs text-gray-600">{alert.classification_reason}</span>
             </div>
           )}

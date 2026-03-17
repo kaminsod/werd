@@ -42,12 +42,26 @@ func (m *HNThreadMonitor) Poll(ctx context.Context, config, watermark, _ json.Ra
 		return nil, watermark, err
 	}
 
+	// Resolve the thread root title for better alert context.
+	threadRoot, rootErr := m.reader.fetchItem(ctx, cfg.ItemID)
+	threadTitle := ""
+	if rootErr == nil && threadRoot != nil {
+		threadTitle = threadRoot.Title
+		if threadTitle == "" {
+			threadTitle = m.reader.resolveStoryTitle(ctx, threadRoot, 10)
+		}
+	}
+
 	items := make([]MonitoredItem, len(replies))
 	newLastSeen := wm.LastSeenID
 	for i, r := range replies {
+		title := fmt.Sprintf("Comment by %s", r.Author)
+		if threadTitle != "" {
+			title = fmt.Sprintf("Comment by %s on \"%s\"", r.Author, threadTitle)
+		}
 		items[i] = MonitoredItem{
 			SourceID:  r.ID,
-			Title:     fmt.Sprintf("Comment by %s", r.Author),
+			Title:     title,
 			Content:   r.Content,
 			URL:       r.URL,
 			Author:    r.Author,

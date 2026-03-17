@@ -84,10 +84,21 @@ func (m *HNAccountMonitor) Poll(ctx context.Context, config, watermark, _ json.R
 					continue
 				}
 
+				// Resolve the story title: use parent's title if it's a story,
+				// otherwise walk up the parent chain to find the root story.
+				storyTitle := parent.Title
+				if storyTitle == "" {
+					storyTitle = m.reader.resolveStoryTitle(ctx, parent, 10)
+				}
+				title := fmt.Sprintf("Reply by %s on \"%s\"", kid.By, storyTitle)
+				if storyTitle == "" {
+					title = fmt.Sprintf("Reply by %s on your comment", kid.By)
+				}
+
 				mu.Lock()
 				items = append(items, MonitoredItem{
 					SourceID:  fmt.Sprintf("hn_reply_%d", kid.ID),
-					Title:     fmt.Sprintf("Reply by %s on \"%s\"", kid.By, parent.Title),
+					Title:     title,
 					Content:   kid.Text,
 					URL:       fmt.Sprintf("https://news.ycombinator.com/item?id=%d", kid.ID),
 					Author:    kid.By,

@@ -25,13 +25,34 @@ func NewHNReader() *HNReader {
 }
 
 type hnItem struct {
-	ID    int    `json:"id"`
-	By    string `json:"by"`
-	Text  string `json:"text"`
-	Time  int64  `json:"time"`
-	Kids  []int  `json:"kids"`
-	Type  string `json:"type"`
-	Title string `json:"title"`
+	ID     int    `json:"id"`
+	By     string `json:"by"`
+	Text   string `json:"text"`
+	Time   int64  `json:"time"`
+	Kids   []int  `json:"kids"`
+	Type   string `json:"type"`
+	Title  string `json:"title"`
+	Parent int    `json:"parent"`
+}
+
+// resolveStoryTitle walks up the parent chain from a comment to find the root
+// story's title. maxDepth caps the number of API calls to avoid runaway chains.
+func (r *HNReader) resolveStoryTitle(ctx context.Context, item *hnItem, maxDepth int) string {
+	current := item
+	for i := 0; i < maxDepth; i++ {
+		if current.Title != "" {
+			return current.Title
+		}
+		if current.Parent == 0 {
+			return ""
+		}
+		parent, err := r.fetchItem(ctx, current.Parent)
+		if err != nil || parent == nil {
+			return ""
+		}
+		current = parent
+	}
+	return ""
 }
 
 func (r *HNReader) GetReplies(ctx context.Context, platformPostID, sinceID string, _ json.RawMessage) ([]PlatformReply, error) {

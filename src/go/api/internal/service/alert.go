@@ -178,7 +178,9 @@ func (s *Alert) List(ctx context.Context, projectID, status, sourceType string, 
 		if err != nil {
 			return nil, fmt.Errorf("listing alerts: %w", err)
 		}
-		total, err = s.q.CountAlerts(ctx, pid)
+		total, err = s.q.CountAlertsBySourceType(ctx, storage.CountAlertsBySourceTypeParams{
+			ProjectID: pid, SourceType: mt,
+		})
 		if err != nil {
 			return nil, fmt.Errorf("counting alerts: %w", err)
 		}

@@ -1,6 +1,10 @@
 package service
 
 import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -323,5 +327,266 @@ func TestMatchKeywordFilter_DefaultFields(t *testing.T) {
 
 	if !matchKeywordFilter(cfg, item) {
 		t.Error("expected match on content with default fields")
+	}
+}
+
+// newMockLLMServer creates a mock OpenAI-compatible server returning the given result.
+func newMockLLMServer(t *testing.T, result LLMClassifyResult) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		content, _ := json.Marshal(result)
+		resp := map[string]any{
+			"choices": []map[string]any{
+				{"message": map[string]string{"content": string(content)}},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}))
+}
+
+func TestApplyClassify_LLM(t *testing.T) {
+	server := newMockLLMServer(t, LLMClassifyResult{
+		Relevant: true,
+		Severity: "high",
+		Tags:     []string{"security", "cve"},
+		Reason:   "Contains CVE reference",
+	})
+	defer server.Close()
+
+	llmCli := NewLLMClient(server.URL, "test-key", "test-model")
+	p := &ProcessingPipeline{llmCli: llmCli}
+
+	rules := []storage.ProcessingRule{
+		{
+			Phase:    "classify",
+			RuleType: "keyword",
+			Name:     "kw-security",
+			Config:   []byte(`{"keywords":["security"],"match_type":"substring","fields":["title"],"set_severity":"medium","add_tags":["sec-kw"]}`),
+		},
+		{
+			Phase:    "classify",
+			RuleType: "llm",
+			Name:     "llm-classify",
+			Config:   []byte(`{"prompt_template":"Classify: {{title}} {{content}}"}`),
+		},
+	}
+
+	item := integration.MonitoredItem{
+		Title:   "Security vulnerability CVE-2026-1234",
+		Content: "Critical issue found",
+	}
+
+	result := p.applyClassify(context.Background(), rules, "reddit", item)
+
+	if result.Severity != "high" {
+		t.Errorf("expected severity 'high' from LLM, got %q", result.Severity)
+	}
+	if !containsString(result.Tags, "security") || !containsString(result.Tags, "cve") || !containsString(result.Tags, "sec-kw") {
+		t.Errorf("expected tags to contain security, cve, sec-kw; got %v", result.Tags)
+	}
+	if result.ClassificationReason != "Contains CVE reference" {
+		t.Errorf("expected LLM reason, got %q", result.ClassificationReason)
+	}
+}
+
+func TestApplyClassify_LLM_NotRelevant(t *testing.T) {
+	server := newMockLLMServer(t, LLMClassifyResult{
+		Relevant: false,
+		Severity: "low",
+		Tags:     []string{},
+		Reason:   "Not relevant",
+	})
+	defer server.Close()
+
+	llmCli := NewLLMClient(server.URL, "", "model")
+	p := &ProcessingPipeline{llmCli: llmCli}
+
+	rules := []storage.ProcessingRule{
+		{
+			Phase:    "classify",
+			RuleType: "keyword",
+			Name:     "kw-match",
+			Config:   []byte(`{"keywords":["test"],"match_type":"substring","fields":["title"],"set_severity":"medium","add_tags":["matched"]}`),
+		},
+		{
+			Phase:    "classify",
+			RuleType: "llm",
+			Name:     "llm-rule",
+			Config:   []byte(`{"prompt_template":"Classify: {{title}}"}`),
+		},
+	}
+
+	item := integration.MonitoredItem{Title: "test post", Content: "content"}
+	result := p.applyClassify(context.Background(), rules, "hn", item)
+
+	// Keyword rule matched so severity is medium, but LLM said not relevant so no LLM enrichment.
+	if result.Severity != "medium" {
+		t.Errorf("expected severity 'medium' from keyword rule, got %q", result.Severity)
+	}
+	if !containsString(result.Tags, "matched") {
+		t.Errorf("expected tag 'matched' from keyword rule, got %v", result.Tags)
+	}
+}
+
+func TestApplyClassify_LLM_OnlyIfKeywords_DefaultTrue(t *testing.T) {
+	// LLM rule without explicit only_if_keywords should default to true,
+	// meaning LLM is skipped when no keyword rules matched.
+	called := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		content := `{"relevant":true,"severity":"high","tags":["llm"],"reason":"LLM ran"}`
+		resp := map[string]any{
+			"choices": []map[string]any{
+				{"message": map[string]string{"content": content}},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	llmCli := NewLLMClient(server.URL, "", "model")
+	p := &ProcessingPipeline{llmCli: llmCli}
+
+	rules := []storage.ProcessingRule{
+		{
+			Phase:    "classify",
+			RuleType: "keyword",
+			Name:     "no-match-kw",
+			Config:   []byte(`{"keywords":["nomatch"],"match_type":"substring","fields":["title"],"set_severity":"medium"}`),
+		},
+		{
+			Phase:    "classify",
+			RuleType: "llm",
+			Name:     "llm-rule",
+			// only_if_keywords absent — should default to true.
+			Config: []byte(`{"prompt_template":"Classify: {{title}}"}`),
+		},
+	}
+
+	item := integration.MonitoredItem{Title: "unrelated post", Content: "nothing here"}
+	result := p.applyClassify(context.Background(), rules, "reddit", item)
+
+	if called {
+		t.Error("LLM should NOT have been called when only_if_keywords defaults true and no keywords matched")
+	}
+	if result.Severity != "low" {
+		t.Errorf("expected default severity 'low', got %q", result.Severity)
+	}
+}
+
+func TestApplyClassify_LLM_OnlyIfKeywords_ExplicitFalse(t *testing.T) {
+	// When only_if_keywords is explicitly false, LLM should run even without keyword matches.
+	server := newMockLLMServer(t, LLMClassifyResult{
+		Relevant: true,
+		Severity: "high",
+		Tags:     []string{"llm-tag"},
+		Reason:   "LLM classified",
+	})
+	defer server.Close()
+
+	llmCli := NewLLMClient(server.URL, "", "model")
+	p := &ProcessingPipeline{llmCli: llmCli}
+
+	rules := []storage.ProcessingRule{
+		{
+			Phase:    "classify",
+			RuleType: "llm",
+			Name:     "llm-always",
+			Config:   []byte(`{"prompt_template":"Classify: {{title}}","only_if_keywords":false}`),
+		},
+	}
+
+	item := integration.MonitoredItem{Title: "some post", Content: "content"}
+	result := p.applyClassify(context.Background(), rules, "reddit", item)
+
+	if result.Severity != "high" {
+		t.Errorf("expected severity 'high' from LLM, got %q", result.Severity)
+	}
+	if !containsString(result.Tags, "llm-tag") {
+		t.Errorf("expected tag 'llm-tag', got %v", result.Tags)
+	}
+}
+
+func TestCombinedFilterAndClassify(t *testing.T) {
+	// Tests the combined filter→classify pipeline flow using the public methods.
+	server := newMockLLMServer(t, LLMClassifyResult{
+		Relevant: true,
+		Severity: "critical",
+		Tags:     []string{"urgent"},
+		Reason:   "LLM says critical",
+	})
+	defer server.Close()
+
+	llmCli := NewLLMClient(server.URL, "", "model")
+	p := &ProcessingPipeline{llmCli: llmCli}
+
+	filterRules := []storage.ProcessingRule{
+		{
+			Phase:    "filter",
+			RuleType: "keyword",
+			Config:   []byte(`{"keywords":["golang","security"],"match_type":"substring","fields":["title"],"action":"include"}`),
+		},
+		{
+			Phase:    "filter",
+			RuleType: "keyword",
+			Config:   []byte(`{"keywords":["spam"],"match_type":"substring","fields":["content"],"action":"exclude"}`),
+		},
+	}
+
+	classifyRules := []storage.ProcessingRule{
+		{
+			Phase:    "classify",
+			RuleType: "keyword",
+			Name:     "sec-kw",
+			Config:   []byte(`{"keywords":["security"],"match_type":"substring","fields":["title"],"set_severity":"high","add_tags":["security"]}`),
+		},
+		{
+			Phase:    "classify",
+			RuleType: "llm",
+			Name:     "llm-rule",
+			Config:   []byte(`{"prompt_template":"Classify: {{title}}"}`),
+		},
+	}
+
+	items := []integration.MonitoredItem{
+		{Title: "Golang security issue", Content: "Important fix"},
+		{Title: "Golang performance", Content: "Benchmark results"},
+		{Title: "Security alert", Content: "This is spam content"},
+		{Title: "Python update", Content: "Not matching"},
+	}
+
+	// Filter phase.
+	filtered := p.applyFilters(filterRules, items)
+
+	// Should keep items 0 and 1 (match "golang" or "security"), exclude item 2 (spam), drop item 3 (no match).
+	if len(filtered) != 2 {
+		t.Fatalf("expected 2 filtered items, got %d", len(filtered))
+	}
+	if filtered[0].Title != "Golang security issue" {
+		t.Errorf("expected first item 'Golang security issue', got %q", filtered[0].Title)
+	}
+	if filtered[1].Title != "Golang performance" {
+		t.Errorf("expected second item 'Golang performance', got %q", filtered[1].Title)
+	}
+
+	// Classify phase on filtered items.
+	results := make([]ProcessingResult, len(filtered))
+	for i, item := range filtered {
+		results[i] = p.applyClassify(context.Background(), classifyRules, "reddit", item)
+	}
+
+	// First item matches "security" keyword → severity=high, then LLM upgrades to critical.
+	if results[0].Severity != "critical" {
+		t.Errorf("expected severity 'critical' for first item, got %q", results[0].Severity)
+	}
+	if !containsString(results[0].Tags, "security") || !containsString(results[0].Tags, "urgent") {
+		t.Errorf("expected tags [security, urgent] for first item, got %v", results[0].Tags)
+	}
+
+	// Second item: no keyword match, LLM should NOT run (only_if_keywords defaults true).
+	if results[1].Severity != "low" {
+		t.Errorf("expected severity 'low' for second item (no keyword match), got %q", results[1].Severity)
 	}
 }

@@ -30,9 +30,11 @@ Key tables in the `werd` database:
 - **service_instances** — Maps project_id to external service resource IDs
 - **monitor_sources** — Per-project monitoring configuration (subreddits, URLs, keywords)
 - **keywords** — Per-project keyword sets for matching
-- **alerts** — Incoming alerts from all monitoring sources, tagged by project
+- **alerts** — Incoming alerts from all monitoring sources, tagged by project (includes `tags`, `classification_reason`, `monitor_source_id` columns added for processing rules pipeline)
 - **notification_rules** — Per-project routing rules (source type x severity -> destination)
-- **platform_connections** — Per-project OAuth credentials for social platforms (encrypted at rest)
+- **processing_rules** — Per-project filter and classify rules for the monitoring pipeline (keyword, regex, LLM)
+- **platform_connections** — Per-project OAuth credentials for social platforms (stored as JSONB; encryption TODO)
 - **published_posts** — Cross-platform post tracking with scheduling support
+- **post_platform_results** — Per-platform publish results for each post (success/failure, external IDs)
 
 All tables except `users` include a `project_id` foreign key for tenant isolation.

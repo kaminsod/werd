@@ -49,3 +49,6 @@ SELECT count(*) FROM alerts WHERE project_id = $1;
 
 -- name: CountAlertsByStatus :one
 SELECT count(*) FROM alerts WHERE project_id = $1 AND status = $2;
+
+-- name: CountAlertsBySourceType :one
+SELECT count(*) FROM alerts WHERE project_id = $1 AND source_type = $2;

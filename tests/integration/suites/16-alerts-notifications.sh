@@ -95,3 +95,52 @@ if [ -n "$RULE_ID" ]; then
   del_rule_status=$(api_delete_status "$TEST_TOKEN" "/projects/$TEST_PROJECT_ID/rules/$RULE_ID")
   assert_eq "200" "$del_rule_status" "Delete notification rule returns 200"
 fi
+
+# ── Processing Rules CRUD ──
+
+# Create processing rule
+pr_resp=$(api_post "$TEST_TOKEN" "/projects/$TEST_PROJECT_ID/processing-rules" \
+  '{"name":"Test Filter","phase":"filter","rule_type":"keyword","config":{"keywords":["test"],"match_type":"substring","action":"include"},"priority":10,"enabled":true}')
+PR_ID=$(echo "$pr_resp" | jq -r '.id // empty')
+if [ -n "$PR_ID" ]; then
+  pass "Create processing rule (id=$PR_ID)"
+else
+  fail "Create processing rule (response: $pr_resp)"
+fi
+
+# List processing rules
+pr_list=$(api_get "$TEST_TOKEN" "/projects/$TEST_PROJECT_ID/processing-rules")
+pr_count=$(echo "$pr_list" | jq 'length' 2>/dev/null || echo "0")
+if [ "$pr_count" -ge 1 ]; then
+  pass "List processing rules returns at least 1"
+else
+  fail "List processing rules (count=$pr_count)"
+fi
+
+# Get processing rule
+if [ -n "$PR_ID" ]; then
+  pr_get=$(api_get "$TEST_TOKEN" "/projects/$TEST_PROJECT_ID/processing-rules/$PR_ID")
+  pr_get_name=$(echo "$pr_get" | jq -r '.name // empty')
+  assert_eq "Test Filter" "$pr_get_name" "Get processing rule returns correct name"
+fi
+
+# Update processing rule
+if [ -n "$PR_ID" ]; then
+  pr_update_status=$(api_put_status "$TEST_TOKEN" "/projects/$TEST_PROJECT_ID/processing-rules/$PR_ID" \
+    '{"name":"Updated Filter","phase":"filter","rule_type":"keyword","config":{"keywords":["updated"],"match_type":"substring","action":"include"},"priority":20,"enabled":false}')
+  assert_eq "200" "$pr_update_status" "Update processing rule returns 200"
+fi
+
+# Delete processing rule
+if [ -n "$PR_ID" ]; then
+  del_pr_status=$(api_delete_status "$TEST_TOKEN" "/projects/$TEST_PROJECT_ID/processing-rules/$PR_ID")
+  assert_eq "200" "$del_pr_status" "Delete processing rule returns 200"
+fi
+
+# Verify deletion
+if [ -n "$PR_ID" ]; then
+  pr_get_deleted_status=$(curl -s -o /dev/null -w '%{http_code}' \
+    -H "Authorization: Bearer $TEST_TOKEN" \
+    "$CADDY_API/api/projects/$TEST_PROJECT_ID/processing-rules/$PR_ID" 2>/dev/null)
+  assert_eq "404" "$pr_get_deleted_status" "Get deleted processing rule returns 404"
+fi

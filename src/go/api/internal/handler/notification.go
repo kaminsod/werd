@@ -47,6 +47,7 @@ type ruleResponse struct {
 	Config      map[string]any `json:"config"`
 	Enabled     bool           `json:"enabled"`
 	CreatedAt   time.Time      `json:"created_at"`
+	UpdatedAt   time.Time      `json:"updated_at"`
 }
 
 // --- Handlers ---
@@ -228,5 +229,6 @@ func ruleInfoToResponse(r *service.RuleInfo) *ruleResponse {
 		Config:      r.Config,
 		Enabled:     r.Enabled,
 		CreatedAt:   r.CreatedAt,
+		UpdatedAt:   r.UpdatedAt,
 	}
 }

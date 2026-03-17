@@ -555,6 +555,7 @@ type NotificationRule struct {
 	Config      []byte                  `json:"config"`
 	Enabled     bool                    `json:"enabled"`
 	CreatedAt   pgtype.Timestamptz      `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz      `json:"updated_at"`
 }
 
 type PlatformConnection struct {

@@ -14,7 +14,7 @@ import (
 const createNotificationRule = `-- name: CreateNotificationRule :one
 INSERT INTO notification_rules (project_id, source_type, min_severity, destination, config, enabled)
 VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, project_id, source_type, min_severity, destination, config, enabled, created_at
+RETURNING id, project_id, source_type, min_severity, destination, config, enabled, created_at, updated_at
 `
 
 type CreateNotificationRuleParams struct {
@@ -45,6 +45,7 @@ func (q *Queries) CreateNotificationRule(ctx context.Context, arg CreateNotifica
 		&i.Config,
 		&i.Enabled,
 		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
@@ -65,7 +66,7 @@ func (q *Queries) DeleteNotificationRule(ctx context.Context, arg DeleteNotifica
 }
 
 const getNotificationRuleByID = `-- name: GetNotificationRuleByID :one
-SELECT id, project_id, source_type, min_severity, destination, config, enabled, created_at
+SELECT id, project_id, source_type, min_severity, destination, config, enabled, created_at, updated_at
 FROM notification_rules
 WHERE id = $1 AND project_id = $2
 `
@@ -87,12 +88,13 @@ func (q *Queries) GetNotificationRuleByID(ctx context.Context, arg GetNotificati
 		&i.Config,
 		&i.Enabled,
 		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
 
 const listEnabledRulesForProject = `-- name: ListEnabledRulesForProject :many
-SELECT id, project_id, source_type, min_severity, destination, config, enabled, created_at
+SELECT id, project_id, source_type, min_severity, destination, config, enabled, created_at, updated_at
 FROM notification_rules
 WHERE project_id = $1 AND enabled = true
 ORDER BY created_at
@@ -116,6 +118,7 @@ func (q *Queries) ListEnabledRulesForProject(ctx context.Context, projectID uuid
 			&i.Config,
 			&i.Enabled,
 			&i.CreatedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -128,7 +131,7 @@ func (q *Queries) ListEnabledRulesForProject(ctx context.Context, projectID uuid
 }
 
 const listNotificationRules = `-- name: ListNotificationRules :many
-SELECT id, project_id, source_type, min_severity, destination, config, enabled, created_at
+SELECT id, project_id, source_type, min_severity, destination, config, enabled, created_at, updated_at
 FROM notification_rules
 WHERE project_id = $1
 ORDER BY created_at
@@ -152,6 +155,7 @@ func (q *Queries) ListNotificationRules(ctx context.Context, projectID uuid.UUID
 			&i.Config,
 			&i.Enabled,
 			&i.CreatedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -167,7 +171,7 @@ const updateNotificationRule = `-- name: UpdateNotificationRule :one
 UPDATE notification_rules
 SET source_type = $3, min_severity = $4, destination = $5, config = $6, enabled = $7
 WHERE id = $1 AND project_id = $2
-RETURNING id, project_id, source_type, min_severity, destination, config, enabled, created_at
+RETURNING id, project_id, source_type, min_severity, destination, config, enabled, created_at, updated_at
 `
 
 type UpdateNotificationRuleParams struct {
@@ -200,6 +204,7 @@ func (q *Queries) UpdateNotificationRule(ctx context.Context, arg UpdateNotifica
 		&i.Config,
 		&i.Enabled,
 		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }

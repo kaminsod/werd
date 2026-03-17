@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -286,8 +287,11 @@ func (p *ProcessingPipeline) applyClassify(ctx context.Context, rules []storage.
 			if p.llmCli == nil {
 				continue
 			}
-			// Respect only_if_keywords (default true).
+			// Respect only_if_keywords (default true when absent from config JSON).
 			onlyIfKW := cfg.OnlyIfKeywords
+			if !onlyIfKW && !bytes.Contains(rule.Config, []byte(`"only_if_keywords"`)) {
+				onlyIfKW = true
+			}
 			if cfg.PromptTemplate != "" && (!onlyIfKW || keywordMatched) {
 				llmResult, err := p.runLLMClassify(ctx, cfg, sourceType, item)
 				if err != nil {

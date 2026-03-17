@@ -23,6 +23,22 @@ func (q *Queries) CountAlerts(ctx context.Context, projectID uuid.UUID) (int64, 
 	return count, err
 }
 
+const countAlertsBySourceType = `-- name: CountAlertsBySourceType :one
+SELECT count(*) FROM alerts WHERE project_id = $1 AND source_type = $2
+`
+
+type CountAlertsBySourceTypeParams struct {
+	ProjectID  uuid.UUID   `json:"project_id"`
+	SourceType MonitorType `json:"source_type"`
+}
+
+func (q *Queries) CountAlertsBySourceType(ctx context.Context, arg CountAlertsBySourceTypeParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countAlertsBySourceType, arg.ProjectID, arg.SourceType)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countAlertsByStatus = `-- name: CountAlertsByStatus :one
 SELECT count(*) FROM alerts WHERE project_id = $1 AND status = $2
 `

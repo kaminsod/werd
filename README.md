@@ -847,7 +847,7 @@ See [`tests/integration/README.md`](tests/integration/README.md) for architectur
 
 ## Status
 
-Phase 1 in progress — project scaffolding complete (monorepo structure, compose skeleton, Dockerfiles, CI pipeline, Makefiles). PostgreSQL, Redis, and Caddy deployed. Architecture defined, component selection complete, multi-project data model designed. Stack simplified (2026-03-13): heavy dependencies removed in favor of built-in Go modules and lightweight services. Next: container networking and health checks (tasks 1.5–1.6).
+MVP complete. Phases 1 (Infrastructure), 3 (Service Deployment), 4 (Dashboard), 5 (Monitoring), and 6 (Notifications) are done. Phase 2 (API Server) is mostly done. The platform has ~35+ API endpoints, 10 dashboard pages, dual method support (API/browser) for all platforms, Reddit+HN monitors, a processing rules pipeline with LLM classification, and notification routing to ntfy/webhooks. Stack simplified (2026-03-13): heavy dependencies removed, core runs in ~440 MB RAM.
 
 ## License
 

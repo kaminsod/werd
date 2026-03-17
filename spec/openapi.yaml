@@ -358,12 +358,936 @@ paths:
               schema:
                 $ref: "#/components/schemas/Message"
 
+  /projects/{id}/alerts:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      summary: List alerts
+      operationId: listAlerts
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [new, seen, triaged, dismissed, responded]
+        - name: source_type
+          in: query
+          schema:
+            $ref: "#/components/schemas/MonitorType"
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: Paginated alert list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlertListResponse"
+
+  /projects/{id}/alerts/{alertID}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: alertID
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      summary: Get alert by ID
+      operationId: getAlert
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Alert details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Alert"
+    put:
+      summary: Update alert status
+      operationId: updateAlertStatus
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [new, seen, triaged, dismissed, responded]
+      responses:
+        "200":
+          description: Alert updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Alert"
+
+  /projects/{id}/keywords:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      summary: List keywords
+      operationId: listKeywords
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: List of keywords
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Keyword"
+    post:
+      summary: Create keyword
+      operationId: createKeyword
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [keyword, match_type]
+              properties:
+                keyword:
+                  type: string
+                match_type:
+                  type: string
+                  enum: [exact, substring, regex]
+      responses:
+        "201":
+          description: Keyword created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Keyword"
+
+  /projects/{id}/keywords/{keywordID}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: keywordID
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    delete:
+      summary: Delete keyword
+      operationId: deleteKeyword
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Keyword deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+
+  /projects/{id}/sources:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      summary: List monitor sources
+      operationId: listSources
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: List of monitor sources
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Source"
+    post:
+      summary: Create monitor source
+      operationId: createSource
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type, config]
+              properties:
+                type:
+                  $ref: "#/components/schemas/MonitorType"
+                config:
+                  type: object
+                enabled:
+                  type: boolean
+                  default: true
+      responses:
+        "201":
+          description: Source created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Source"
+
+  /projects/{id}/sources/{sourceID}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: sourceID
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      summary: Get source by ID
+      operationId: getSource
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Source details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Source"
+    put:
+      summary: Update source
+      operationId: updateSource
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type, config]
+              properties:
+                type:
+                  $ref: "#/components/schemas/MonitorType"
+                config:
+                  type: object
+                enabled:
+                  type: boolean
+      responses:
+        "200":
+          description: Source updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Source"
+    delete:
+      summary: Delete source
+      operationId: deleteSource
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Source deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+
+  /projects/{id}/connections:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      summary: List platform connections
+      operationId: listConnections
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: List of connections
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Connection"
+    post:
+      summary: Create platform connection
+      operationId: createConnection
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [platform]
+              properties:
+                platform:
+                  type: string
+                method:
+                  type: string
+                  enum: [api, browser]
+                  default: api
+                credentials:
+                  type: object
+      responses:
+        "201":
+          description: Connection created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Connection"
+
+  /projects/{id}/connections/{connID}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: connID
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      summary: Get connection by ID
+      operationId: getConnection
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Connection details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Connection"
+    put:
+      summary: Update connection
+      operationId: updateConnection
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                method:
+                  type: string
+                  enum: [api, browser]
+                credentials:
+                  type: object
+                enabled:
+                  type: boolean
+      responses:
+        "200":
+          description: Connection updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Connection"
+    delete:
+      summary: Delete connection
+      operationId: deleteConnection
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Connection deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+
+  /projects/{id}/posts:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      summary: List posts
+      operationId: listPosts
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, scheduled, publishing, published, failed]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: Paginated post list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PostListResponse"
+    post:
+      summary: Create post
+      operationId: createPost
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content, platforms]
+              properties:
+                title:
+                  type: string
+                content:
+                  type: string
+                url:
+                  type: string
+                post_type:
+                  type: string
+                  enum: [text, link]
+                platforms:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "201":
+          description: Post created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Post"
+
+  /projects/{id}/posts/{postID}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: postID
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      summary: Get post by ID
+      operationId: getPost
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Post details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Post"
+    put:
+      summary: Update post
+      operationId: updatePost
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content, platforms]
+              properties:
+                title:
+                  type: string
+                content:
+                  type: string
+                url:
+                  type: string
+                post_type:
+                  type: string
+                  enum: [text, link]
+                platforms:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "200":
+          description: Post updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Post"
+    delete:
+      summary: Delete post
+      operationId: deletePost
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Post deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+
+  /projects/{id}/posts/{postID}/publish:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: postID
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      summary: Publish post to all target platforms
+      operationId: publishPost
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Publish results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublishResponse"
+
+  /projects/{id}/posts/{postID}/monitor:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: postID
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    put:
+      summary: Enable/disable reply monitoring for a post
+      operationId: setPostMonitor
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [enable]
+              properties:
+                enable:
+                  type: boolean
+      responses:
+        "200":
+          description: Monitor setting updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+
+  /projects/{id}/rules:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      summary: List notification rules
+      operationId: listNotificationRules
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: List of notification rules
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/NotificationRule"
+    post:
+      summary: Create notification rule
+      operationId: createNotificationRule
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [destination]
+              properties:
+                source_type:
+                  type: string
+                  enum: [reddit, hn, web, rss, github, bluesky, all]
+                  default: all
+                min_severity:
+                  type: string
+                  enum: [low, medium, high, critical]
+                  default: low
+                destination:
+                  type: string
+                  enum: [ntfy, webhook, email]
+                config:
+                  type: object
+                enabled:
+                  type: boolean
+                  default: true
+      responses:
+        "201":
+          description: Rule created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationRule"
+
+  /projects/{id}/rules/{ruleID}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: ruleID
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      summary: Get notification rule by ID
+      operationId: getNotificationRule
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Rule details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationRule"
+    put:
+      summary: Update notification rule
+      operationId: updateNotificationRule
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [source_type, min_severity, destination]
+              properties:
+                source_type:
+                  type: string
+                  enum: [reddit, hn, web, rss, github, bluesky, all]
+                min_severity:
+                  type: string
+                  enum: [low, medium, high, critical]
+                destination:
+                  type: string
+                  enum: [ntfy, webhook, email]
+                config:
+                  type: object
+                enabled:
+                  type: boolean
+      responses:
+        "200":
+          description: Rule updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationRule"
+    delete:
+      summary: Delete notification rule
+      operationId: deleteNotificationRule
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Rule deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+
+  /projects/{id}/processing-rules:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      summary: List processing rules
+      operationId: listProcessingRules
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: List of processing rules
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ProcessingRule"
+    post:
+      summary: Create processing rule
+      operationId: createProcessingRule
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, phase, rule_type, config]
+              properties:
+                name:
+                  type: string
+                source_id:
+                  type: string
+                  format: uuid
+                phase:
+                  type: string
+                  enum: [filter, classify]
+                rule_type:
+                  type: string
+                  enum: [keyword, regex, llm]
+                config:
+                  type: object
+                priority:
+                  type: integer
+                  default: 0
+                enabled:
+                  type: boolean
+                  default: true
+      responses:
+        "201":
+          description: Processing rule created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProcessingRule"
+
+  /projects/{id}/processing-rules/{ruleID}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: ruleID
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      summary: Get processing rule by ID
+      operationId: getProcessingRule
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Processing rule details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProcessingRule"
+    put:
+      summary: Update processing rule
+      operationId: updateProcessingRule
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, phase, rule_type, config]
+              properties:
+                name:
+                  type: string
+                source_id:
+                  type: string
+                  format: uuid
+                phase:
+                  type: string
+                  enum: [filter, classify]
+                rule_type:
+                  type: string
+                  enum: [keyword, regex, llm]
+                config:
+                  type: object
+                priority:
+                  type: integer
+                enabled:
+                  type: boolean
+      responses:
+        "200":
+          description: Processing rule updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProcessingRule"
+    delete:
+      summary: Delete processing rule
+      operationId: deleteProcessingRule
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Processing rule deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+
+  /webhooks/ingest:
+    post:
+      summary: Ingest an alert via webhook
+      operationId: webhookIngest
+      security:
+        - internalApiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [project_id, source_type, title]
+              properties:
+                project_id:
+                  type: string
+                  format: uuid
+                source_type:
+                  $ref: "#/components/schemas/MonitorType"
+                source_id:
+                  type: string
+                title:
+                  type: string
+                content:
+                  type: string
+                url:
+                  type: string
+                severity:
+                  type: string
+                  enum: [low, medium, high, critical]
+                  default: low
+                tags:
+                  type: array
+                  items:
+                    type: string
+                monitor_source_id:
+                  type: string
+                  format: uuid
+      responses:
+        "200":
+          description: Alert ingested
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Alert"
+        "401":
+          description: Missing or invalid API key
+
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
+    internalApiKey:
+      type: apiKey
+      in: header
+      name: X-Internal-Key
 
   schemas:
     User:
@@ -420,3 +1344,261 @@ components:
       properties:
         message:
           type: string
+
+    MonitorType:
+      type: string
+      enum: [reddit, hn, web, rss, github, bluesky]
+
+    Alert:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        project_id:
+          type: string
+          format: uuid
+        source_type:
+          $ref: "#/components/schemas/MonitorType"
+        source_id:
+          type: string
+        title:
+          type: string
+        content:
+          type: string
+        url:
+          type: string
+        matched_keywords:
+          type: array
+          items:
+            type: string
+        severity:
+          type: string
+          enum: [low, medium, high, critical]
+        status:
+          type: string
+          enum: [new, seen, triaged, dismissed, responded]
+        tags:
+          type: array
+          items:
+            type: string
+        classification_reason:
+          type: string
+        monitor_source_id:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    AlertListResponse:
+      type: object
+      properties:
+        alerts:
+          type: array
+          items:
+            $ref: "#/components/schemas/Alert"
+        total:
+          type: integer
+
+    Keyword:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        project_id:
+          type: string
+          format: uuid
+        keyword:
+          type: string
+        match_type:
+          type: string
+          enum: [exact, substring, regex]
+        created_at:
+          type: string
+          format: date-time
+
+    Source:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        project_id:
+          type: string
+          format: uuid
+        type:
+          $ref: "#/components/schemas/MonitorType"
+        config:
+          type: object
+        enabled:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Connection:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        project_id:
+          type: string
+          format: uuid
+        platform:
+          type: string
+        method:
+          type: string
+          enum: [api, browser]
+        enabled:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Post:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        project_id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        content:
+          type: string
+        url:
+          type: string
+        post_type:
+          type: string
+          enum: [text, link]
+        platforms:
+          type: array
+          items:
+            type: string
+        scheduled_at:
+          type: string
+          format: date-time
+          nullable: true
+        published_at:
+          type: string
+          format: date-time
+          nullable: true
+        status:
+          type: string
+          enum: [draft, scheduled, publishing, published, failed]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    PostListResponse:
+      type: object
+      properties:
+        posts:
+          type: array
+          items:
+            $ref: "#/components/schemas/Post"
+        total:
+          type: integer
+
+    PlatformPublishResult:
+      type: object
+      properties:
+        platform:
+          type: string
+        success:
+          type: boolean
+        post_id:
+          type: string
+        url:
+          type: string
+        error:
+          type: string
+
+    PublishResponse:
+      type: object
+      properties:
+        post:
+          $ref: "#/components/schemas/Post"
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlatformPublishResult"
+
+    NotificationRule:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        project_id:
+          type: string
+          format: uuid
+        source_type:
+          type: string
+          enum: [reddit, hn, web, rss, github, bluesky, all]
+        min_severity:
+          type: string
+          enum: [low, medium, high, critical]
+        destination:
+          type: string
+          enum: [ntfy, webhook, email]
+        config:
+          type: object
+        enabled:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    ProcessingRule:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        project_id:
+          type: string
+          format: uuid
+        source_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        phase:
+          type: string
+          enum: [filter, classify]
+        rule_type:
+          type: string
+          enum: [keyword, regex, llm]
+        config:
+          type: object
+        priority:
+          type: integer
+        enabled:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time

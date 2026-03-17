@@ -85,6 +85,7 @@ export interface Rule {
   config: Record<string, unknown>;
   enabled: boolean;
   created_at: string;
+  updated_at: string;
 }
 
 export type NotificationSourceType = MonitorType | "all";

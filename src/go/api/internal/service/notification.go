@@ -35,6 +35,7 @@ type RuleInfo struct {
 	Config      map[string]any
 	Enabled     bool
 	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 type Notification struct {
@@ -273,7 +274,7 @@ func (s *Notification) dispatchNtfy(ctx context.Context, alert *AlertInfo, cfg m
 		"title":    fmt.Sprintf("[%s] %s", alert.Severity, alert.Title),
 		"message":  truncate(alert.Content, 500),
 		"priority": severityToNtfyPriority(alert.Severity),
-		"tags":     []string{alert.SourceType, alert.Severity},
+		"tags":     append([]string{alert.SourceType, alert.Severity}, alert.Tags...),
 	}
 	if alert.URL != "" {
 		payload["click"] = alert.URL
@@ -401,7 +402,8 @@ func parseNotifSourceType(s string) (storage.NotificationSourceType, error) {
 	switch storage.NotificationSourceType(s) {
 	case storage.NotificationSourceTypeReddit, storage.NotificationSourceTypeHn,
 		storage.NotificationSourceTypeWeb, storage.NotificationSourceTypeRss,
-		storage.NotificationSourceTypeGithub, storage.NotificationSourceTypeAll:
+		storage.NotificationSourceTypeGithub, storage.NotificationSourceTypeBluesky,
+		storage.NotificationSourceTypeAll:
 		return storage.NotificationSourceType(s), nil
 	default:
 		return "", fmt.Errorf("invalid notification source type: %s", s)
@@ -459,5 +461,6 @@ func storageRuleToInfo(r storage.NotificationRule) *RuleInfo {
 		Config:      cfg,
 		Enabled:     r.Enabled,
 		CreatedAt:   r.CreatedAt.Time,
+		UpdatedAt:   r.UpdatedAt.Time,
 	}
 }

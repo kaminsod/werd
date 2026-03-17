@@ -27,13 +27,16 @@ func NewAlert(alertSvc *service.Alert, keywordSvc *service.Keyword, notifSvc *se
 // --- Request/Response types ---
 
 type ingestRequest struct {
-	ProjectID  string `json:"project_id"`
-	SourceType string `json:"source_type"`
-	SourceID   string `json:"source_id"`
-	Title      string `json:"title"`
-	Content    string `json:"content"`
-	URL        string `json:"url"`
-	Severity   string `json:"severity"`
+	ProjectID            string   `json:"project_id"`
+	SourceType           string   `json:"source_type"`
+	SourceID             string   `json:"source_id"`
+	Title                string   `json:"title"`
+	Content              string   `json:"content"`
+	URL                  string   `json:"url"`
+	Severity             string   `json:"severity"`
+	Tags                 []string `json:"tags"`
+	ClassificationReason string   `json:"classification_reason"`
+	MonitorSourceID      string   `json:"monitor_source_id"`
 }
 
 type alertResponse struct {
@@ -92,13 +95,16 @@ func (h *AlertHandler) IngestWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	alert, isNew, err := h.alertSvc.Ingest(r.Context(), service.IngestRequest{
-		ProjectID:  req.ProjectID,
-		SourceType: req.SourceType,
-		SourceID:   req.SourceID,
-		Title:      req.Title,
-		Content:    req.Content,
-		URL:        req.URL,
-		Severity:   req.Severity,
+		ProjectID:            req.ProjectID,
+		SourceType:           req.SourceType,
+		SourceID:             req.SourceID,
+		Title:                req.Title,
+		Content:              req.Content,
+		URL:                  req.URL,
+		Severity:             req.Severity,
+		Tags:                 req.Tags,
+		ClassificationReason: req.ClassificationReason,
+		MonitorSourceID:      req.MonitorSourceID,
 	})
 	if err != nil {
 		switch err {

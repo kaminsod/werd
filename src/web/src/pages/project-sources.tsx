@@ -33,7 +33,6 @@ export default function SourcesPage() {
   const [formSubreddit, setFormSubreddit] = useState("");
   const [formThreadId, setFormThreadId] = useState("");
   const [formItemId, setFormItemId] = useState("");
-  const [formKeywords, setFormKeywords] = useState("");
   const [formPollInterval, setFormPollInterval] = useState("300");
 
   const useStructuredForm = formType === "reddit" || formType === "hn" || formType === "bluesky";
@@ -50,7 +49,6 @@ export default function SourcesPage() {
     setFormSubreddit("");
     setFormThreadId("");
     setFormItemId("");
-    setFormKeywords("");
     setFormPollInterval("300");
     setShowForm(false);
     setEditId(null);
@@ -68,7 +66,6 @@ export default function SourcesPage() {
       setFormSubreddit((cfg.subreddit as string) || "");
       setFormThreadId((cfg.thread_id as string) || "");
       setFormItemId(cfg.item_id ? String(cfg.item_id) : "");
-      setFormKeywords(Array.isArray(cfg.keywords) ? (cfg.keywords as string[]).join(", ") : "");
       setFormPollInterval(cfg.poll_interval_secs ? String(cfg.poll_interval_secs) : "300");
       setFormConfig(JSON.stringify(cfg, null, 2));
     } else if (src.type === "bluesky") {
@@ -95,9 +92,6 @@ export default function SourcesPage() {
         base.check_mentions = formCheckMentions;
       } else {
         base.subreddit = formSubreddit;
-        if (formKeywords.trim()) {
-          base.keywords = formKeywords.split(",").map((k) => k.trim()).filter(Boolean);
-        }
       }
       return base;
     }
@@ -110,10 +104,6 @@ export default function SourcesPage() {
         base.item_id = parseInt(formItemId) || 0;
       } else if (formMode === "account") {
         base.username = formUsername;
-      } else {
-        if (formKeywords.trim()) {
-          base.keywords = formKeywords.split(",").map((k) => k.trim()).filter(Boolean);
-        }
       }
       return base;
     }

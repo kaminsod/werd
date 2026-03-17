@@ -312,18 +312,22 @@ func (s *Notification) dispatchWebhook(ctx context.Context, alert *AlertInfo, cf
 	}
 
 	payload := map[string]any{
-		"event":            "alert.new",
-		"alert_id":         alert.ID,
-		"project_id":       alert.ProjectID,
-		"source_type":      alert.SourceType,
-		"source_id":        alert.SourceID,
-		"title":            alert.Title,
-		"content":          alert.Content,
-		"url":              alert.URL,
-		"matched_keywords": alert.MatchedKeywords,
-		"severity":         alert.Severity,
-		"status":           alert.Status,
-		"created_at":       alert.CreatedAt,
+		"event":                 "alert.new",
+		"alert_id":              alert.ID,
+		"project_id":            alert.ProjectID,
+		"source_type":           alert.SourceType,
+		"source_id":             alert.SourceID,
+		"title":                 alert.Title,
+		"content":               alert.Content,
+		"url":                   alert.URL,
+		"matched_keywords":      alert.MatchedKeywords,
+		"severity":              alert.Severity,
+		"status":                alert.Status,
+		"tags":                  alert.Tags,
+		"classification_reason": alert.ClassificationReason,
+		"monitor_source_id":     alert.MonitorSourceID,
+		"created_at":            alert.CreatedAt,
+		"updated_at":            alert.UpdatedAt,
 	}
 
 	body, err := json.Marshal(payload)

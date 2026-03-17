@@ -23,7 +23,7 @@ CREATE INDEX idx_processing_rules_lookup ON processing_rules(project_id, enabled
 CREATE TRIGGER set_processing_rules_updated_at
     BEFORE UPDATE ON processing_rules
     FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
+    EXECUTE FUNCTION set_updated_at();
 
 -- New columns on alerts for classification results and source tracking.
 ALTER TABLE alerts ADD COLUMN tags TEXT[] NOT NULL DEFAULT '{}';

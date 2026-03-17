@@ -288,7 +288,7 @@ func (p *ProcessingPipeline) applyClassify(ctx context.Context, rules []storage.
 			}
 			// Respect only_if_keywords (default true).
 			onlyIfKW := cfg.OnlyIfKeywords
-			if cfg.PromptTemplate != "" && !onlyIfKW || keywordMatched {
+			if cfg.PromptTemplate != "" && (!onlyIfKW || keywordMatched) {
 				llmResult, err := p.runLLMClassify(ctx, cfg, sourceType, item)
 				if err != nil {
 					log.Printf("processing: LLM classify failed for rule %s: %v", rule.ID, err)

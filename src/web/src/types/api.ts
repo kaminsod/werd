@@ -50,6 +50,9 @@ export interface Alert {
   matched_keywords: string[];
   severity: AlertSeverity;
   status: AlertStatus;
+  tags: string[];
+  classification_reason: string;
+  monitor_source_id?: string;
   created_at: string;
   updated_at: string;
 }
@@ -92,6 +95,24 @@ export interface Source {
   project_id: string;
   type: MonitorType;
   config: Record<string, unknown>;
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// Processing rules
+export type ProcessingPhase = "filter" | "classify";
+export type ProcessingRuleType = "keyword" | "regex" | "llm";
+
+export interface ProcessingRule {
+  id: string;
+  project_id: string;
+  source_id?: string;
+  name: string;
+  phase: ProcessingPhase;
+  rule_type: ProcessingRuleType;
+  config: Record<string, unknown>;
+  priority: number;
   enabled: boolean;
   created_at: string;
   updated_at: string;

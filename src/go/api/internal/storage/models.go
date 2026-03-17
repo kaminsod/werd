@@ -500,18 +500,21 @@ func (ns NullServiceStatus) Value() (driver.Value, error) {
 }
 
 type Alert struct {
-	ID              uuid.UUID          `json:"id"`
-	ProjectID       uuid.UUID          `json:"project_id"`
-	SourceType      MonitorType        `json:"source_type"`
-	SourceID        string             `json:"source_id"`
-	Title           string             `json:"title"`
-	Content         string             `json:"content"`
-	Url             string             `json:"url"`
-	MatchedKeywords []string           `json:"matched_keywords"`
-	Severity        AlertSeverity      `json:"severity"`
-	Status          AlertStatus        `json:"status"`
-	CreatedAt       pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	ID                   uuid.UUID          `json:"id"`
+	ProjectID            uuid.UUID          `json:"project_id"`
+	SourceType           MonitorType        `json:"source_type"`
+	SourceID             string             `json:"source_id"`
+	Title                string             `json:"title"`
+	Content              string             `json:"content"`
+	Url                  string             `json:"url"`
+	MatchedKeywords      []string           `json:"matched_keywords"`
+	Severity             AlertSeverity      `json:"severity"`
+	Status               AlertStatus        `json:"status"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
+	Tags                 []string           `json:"tags"`
+	ClassificationReason string             `json:"classification_reason"`
+	MonitorSourceID      pgtype.UUID        `json:"monitor_source_id"`
 }
 
 type AuditLog struct {
@@ -578,6 +581,20 @@ type PostPlatformResult struct {
 	MonitorReplies   bool               `json:"monitor_replies"`
 	LastReplyCheck   pgtype.Timestamptz `json:"last_reply_check"`
 	LastKnownReplyID string             `json:"last_known_reply_id"`
+}
+
+type ProcessingRule struct {
+	ID        uuid.UUID          `json:"id"`
+	ProjectID uuid.UUID          `json:"project_id"`
+	SourceID  pgtype.UUID        `json:"source_id"`
+	Name      string             `json:"name"`
+	Phase     string             `json:"phase"`
+	RuleType  string             `json:"rule_type"`
+	Config    []byte             `json:"config"`
+	Priority  int32              `json:"priority"`
+	Enabled   bool               `json:"enabled"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 }
 
 type Project struct {

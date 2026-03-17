@@ -9,6 +9,7 @@ const navItems = [
   { to: "alerts", label: "Alerts", help: help.navAlerts },
   { to: "keywords", label: "Keywords", help: help.navKeywords },
   { to: "sources", label: "Sources", help: help.navSources },
+  { to: "processing", label: "Processing", help: help.navProcessing },
   { to: "rules", label: "Rules", help: help.navRules },
   { to: "connections", label: "Connections", help: help.navConnections },
   { to: "posts", label: "Posts", help: help.navPosts },

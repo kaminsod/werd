@@ -6,6 +6,8 @@ import (
 	"log"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/werd-platform/werd/src/go/api/internal/integration"
 	"github.com/werd-platform/werd/src/go/api/internal/storage"
 )
@@ -16,6 +18,7 @@ type SourcePoller struct {
 	platformSvc *Platform
 	alertSvc    *Alert
 	monitors    *integration.SourceMonitorRegistry
+	pipeline    *ProcessingPipeline
 	interval    time.Duration
 }
 
@@ -24,6 +27,7 @@ func NewSourcePoller(
 	platformSvc *Platform,
 	alertSvc *Alert,
 	monitors *integration.SourceMonitorRegistry,
+	pipeline *ProcessingPipeline,
 	interval time.Duration,
 ) *SourcePoller {
 	return &SourcePoller{
@@ -31,6 +35,7 @@ func NewSourcePoller(
 		platformSvc: platformSvc,
 		alertSvc:    alertSvc,
 		monitors:    monitors,
+		pipeline:    pipeline,
 		interval:    interval,
 	}
 }
@@ -132,18 +137,50 @@ func (p *SourcePoller) poll(ctx context.Context) {
 			continue
 		}
 
-		// Ingest new items as alerts.
+		// Run processing pipeline (filter + classify).
+		sourceID := source.ID
+		projectID := source.ProjectID
+		filteredItems := items
+		var classifyResults []ProcessingResult
+
+		if p.pipeline != nil && len(items) > 0 {
+			filteredItems, classifyResults, err = p.pipeline.Process(ctx, projectID, sourceID, string(source.Type), items)
+			if err != nil {
+				log.Printf("source poller: pipeline error for %s source %s: %v", monitorKey, source.ID, err)
+				// Fall through with unfiltered items.
+				filteredItems = items
+				classifyResults = nil
+			}
+		}
+
+		// Ingest filtered items as alerts.
 		ingested := 0
-		for _, item := range items {
-			_, _, err := p.alertSvc.Ingest(ctx, IngestRequest{
-				ProjectID:  source.ProjectID.String(),
-				SourceType: string(source.Type),
-				SourceID:   item.SourceID,
-				Title:      item.Title,
-				Content:    item.Content,
-				URL:        item.URL,
-				Severity:   "low",
-			})
+		for i, item := range filteredItems {
+			req := IngestRequest{
+				ProjectID:       projectID.String(),
+				SourceType:      string(source.Type),
+				SourceID:        item.SourceID,
+				Title:           item.Title,
+				Content:         item.Content,
+				URL:             item.URL,
+				Severity:        "low",
+				Tags:            []string{},
+				MonitorSourceID: sourceID.String(),
+			}
+
+			// Apply classification results if available.
+			if classifyResults != nil && i < len(classifyResults) {
+				cr := classifyResults[i]
+				if cr.Severity != "" {
+					req.Severity = cr.Severity
+				}
+				if len(cr.Tags) > 0 {
+					req.Tags = cr.Tags
+				}
+				req.ClassificationReason = cr.ClassificationReason
+			}
+
+			_, _, err := p.alertSvc.Ingest(ctx, req)
 			if err != nil {
 				log.Printf("source poller: error ingesting %s: %v", item.SourceID, err)
 				continue
@@ -152,7 +189,7 @@ func (p *SourcePoller) poll(ctx context.Context) {
 		}
 
 		if ingested > 0 {
-			log.Printf("source poller: %s source %s: ingested %d/%d items", monitorKey, source.ID, ingested, len(items))
+			log.Printf("source poller: %s source %s: ingested %d/%d items (filtered from %d)", monitorKey, source.ID, ingested, len(filteredItems), len(items))
 		}
 
 		// Update watermark.
@@ -161,3 +198,6 @@ func (p *SourcePoller) poll(ctx context.Context) {
 		})
 	}
 }
+
+// ensure uuid is used (referenced in pipeline Process call).
+var _ = uuid.UUID{}

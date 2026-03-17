@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 )
@@ -73,13 +72,6 @@ func NewHNKeywordMonitor() *HNKeywordMonitor {
 }
 
 func (m *HNKeywordMonitor) Poll(ctx context.Context, config, watermark, _ json.RawMessage) ([]MonitoredItem, json.RawMessage, error) {
-	var cfg struct {
-		Keywords []string `json:"keywords"`
-	}
-	if err := json.Unmarshal(config, &cfg); err != nil {
-		return nil, watermark, fmt.Errorf("hn keywords: invalid config: %w", err)
-	}
-
 	var wm struct {
 		MaxSeenID int `json:"max_seen_id"`
 	}
@@ -108,16 +100,19 @@ func (m *HNKeywordMonitor) Poll(ctx context.Context, config, watermark, _ json.R
 		return nil, newWM, nil
 	}
 
+	// Cap per poll.
+	if len(newIDs) > 50 {
+		newIDs = newIDs[:50]
+	}
+
 	// Fetch items concurrently (max 5).
+	// Keyword filtering is now handled by processing rules in the pipeline.
 	const maxConcurrent = 5
 	sem := make(chan struct{}, maxConcurrent)
 	var mu sync.Mutex
 	var items []MonitoredItem
 
 	for _, id := range newIDs {
-		if len(items) >= 50 {
-			break // cap per-poll
-		}
 		sem <- struct{}{}
 		go func(storyID int) {
 			defer func() { <-sem }()
@@ -125,21 +120,6 @@ func (m *HNKeywordMonitor) Poll(ctx context.Context, config, watermark, _ json.R
 			item, err := m.reader.fetchItem(ctx, storyID)
 			if err != nil || item == nil || item.Type != "story" {
 				return
-			}
-
-			// Keyword filter.
-			if len(cfg.Keywords) > 0 {
-				text := strings.ToLower(item.Title + " " + item.Text + " " + item.By)
-				matched := false
-				for _, kw := range cfg.Keywords {
-					if strings.Contains(text, strings.ToLower(kw)) {
-						matched = true
-						break
-					}
-				}
-				if !matched {
-					return
-				}
 			}
 
 			url := fmt.Sprintf("https://news.ycombinator.com/item?id=%d", item.ID)

@@ -20,6 +20,7 @@ func New(
 	notifH *handler.NotificationHandler,
 	platformH *handler.PlatformHandler,
 	sourceH *handler.MonitorSourceHandler,
+	processingH *handler.ProcessingHandler,
 	queries *storage.Queries,
 	internalAPIKey string,
 ) http.Handler {
@@ -103,7 +104,14 @@ func New(
 				r.Put("/sources/{sourceID}", sourceH.UpdateSource)
 				r.Delete("/sources/{sourceID}", sourceH.DeleteSource)
 
-				// Platform connections.
+				// Processing rules.
+			r.Get("/processing-rules", processingH.ListRules)
+			r.Post("/processing-rules", processingH.CreateRule)
+			r.Get("/processing-rules/{ruleID}", processingH.GetRule)
+			r.Put("/processing-rules/{ruleID}", processingH.UpdateRule)
+			r.Delete("/processing-rules/{ruleID}", processingH.DeleteRule)
+
+			// Platform connections.
 				r.Get("/connections", platformH.ListConnections)
 				r.Post("/connections", platformH.CreateConnection)
 				r.Post("/connections/create-account", platformH.CreateAccount)

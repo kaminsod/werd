@@ -71,6 +71,31 @@ export const navSources: HelpEntry = {
   ),
 };
 
+export const navProcessing: HelpEntry = {
+  tooltip: "Filter and classify monitored items",
+  modal: (
+    <>
+      <h3 className="mb-2 font-semibold">Processing Rules</h3>
+      <p className="mb-2">
+        Processing rules sit in the pipeline between monitor polling and alert ingestion.
+        They control which items become alerts and how those alerts are classified.
+      </p>
+      <p className="mb-2"><strong>Two phases:</strong></p>
+      <ul className="mb-2 list-inside list-disc space-y-1">
+        <li><strong>Filter</strong> — include or exclude items based on keywords or regex patterns</li>
+        <li><strong>Classify</strong> — assign severity, tags, and classification reasons to items</li>
+      </ul>
+      <p className="mb-2"><strong>Rule types:</strong></p>
+      <ul className="mb-2 list-inside list-disc space-y-1">
+        <li><strong>Keyword</strong> — match against keywords with exact, substring, or regex matching</li>
+        <li><strong>Regex</strong> — match using a regular expression pattern</li>
+        <li><strong>LLM</strong> — use an AI model for semantic analysis (requires LLM endpoint configured)</li>
+      </ul>
+      <p>Rules can be scoped to a specific source or apply to all sources in the project.</p>
+    </>
+  ),
+};
+
 export const navRules: HelpEntry = {
   tooltip: "How and when you get notified",
   modal: (

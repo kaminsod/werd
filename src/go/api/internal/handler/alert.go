@@ -37,18 +37,21 @@ type ingestRequest struct {
 }
 
 type alertResponse struct {
-	ID              string    `json:"id"`
-	ProjectID       string    `json:"project_id"`
-	SourceType      string    `json:"source_type"`
-	SourceID        string    `json:"source_id"`
-	Title           string    `json:"title"`
-	Content         string    `json:"content"`
-	URL             string    `json:"url"`
-	MatchedKeywords []string  `json:"matched_keywords"`
-	Severity        string    `json:"severity"`
-	Status          string    `json:"status"`
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
+	ID                   string    `json:"id"`
+	ProjectID            string    `json:"project_id"`
+	SourceType           string    `json:"source_type"`
+	SourceID             string    `json:"source_id"`
+	Title                string    `json:"title"`
+	Content              string    `json:"content"`
+	URL                  string    `json:"url"`
+	MatchedKeywords      []string  `json:"matched_keywords"`
+	Severity             string    `json:"severity"`
+	Status               string    `json:"status"`
+	Tags                 []string  `json:"tags"`
+	ClassificationReason string    `json:"classification_reason"`
+	MonitorSourceID      string    `json:"monitor_source_id,omitempty"`
+	CreatedAt            time.Time `json:"created_at"`
+	UpdatedAt            time.Time `json:"updated_at"`
 }
 
 type alertListResponse struct {
@@ -288,18 +291,21 @@ func (h *AlertHandler) DeleteKeyword(w http.ResponseWriter, r *http.Request) {
 
 func alertInfoToResponse(a *service.AlertInfo) *alertResponse {
 	return &alertResponse{
-		ID:              a.ID,
-		ProjectID:       a.ProjectID,
-		SourceType:      a.SourceType,
-		SourceID:        a.SourceID,
-		Title:           a.Title,
-		Content:         a.Content,
-		URL:             a.URL,
-		MatchedKeywords: a.MatchedKeywords,
-		Severity:        a.Severity,
-		Status:          a.Status,
-		CreatedAt:       a.CreatedAt,
-		UpdatedAt:       a.UpdatedAt,
+		ID:                   a.ID,
+		ProjectID:            a.ProjectID,
+		SourceType:           a.SourceType,
+		SourceID:             a.SourceID,
+		Title:                a.Title,
+		Content:              a.Content,
+		URL:                  a.URL,
+		MatchedKeywords:      a.MatchedKeywords,
+		Severity:             a.Severity,
+		Status:               a.Status,
+		Tags:                 a.Tags,
+		ClassificationReason: a.ClassificationReason,
+		MonitorSourceID:      a.MonitorSourceID,
+		CreatedAt:            a.CreatedAt,
+		UpdatedAt:            a.UpdatedAt,
 	}
 }
 

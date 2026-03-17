@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/werd-platform/werd/src/go/api/internal/storage"
 )
@@ -21,28 +22,34 @@ var (
 )
 
 type AlertInfo struct {
-	ID              string
-	ProjectID       string
-	SourceType      string
-	SourceID        string
-	Title           string
-	Content         string
-	URL             string
-	MatchedKeywords []string
-	Severity        string
-	Status          string
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	ID                   string
+	ProjectID            string
+	SourceType           string
+	SourceID             string
+	Title                string
+	Content              string
+	URL                  string
+	MatchedKeywords      []string
+	Severity             string
+	Status               string
+	Tags                 []string
+	ClassificationReason string
+	MonitorSourceID      string
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
 }
 
 type IngestRequest struct {
-	ProjectID  string
-	SourceType string
-	SourceID   string
-	Title      string
-	Content    string
-	URL        string
-	Severity   string
+	ProjectID            string
+	SourceType           string
+	SourceID             string
+	Title                string
+	Content              string
+	URL                  string
+	Severity             string
+	Tags                 []string
+	ClassificationReason string
+	MonitorSourceID      string
 }
 
 type AlertListResult struct {
@@ -88,15 +95,31 @@ func (s *Alert) Ingest(ctx context.Context, req IngestRequest) (*AlertInfo, bool
 		return nil, false, fmt.Errorf("matching keywords: %w", err)
 	}
 
+	tags := req.Tags
+	if tags == nil {
+		tags = []string{}
+	}
+
+	var monitorSourceID pgtype.UUID
+	if req.MonitorSourceID != "" {
+		parsed, parseErr := uuid.Parse(req.MonitorSourceID)
+		if parseErr == nil {
+			monitorSourceID = pgtype.UUID{Bytes: parsed, Valid: true}
+		}
+	}
+
 	alert, err := s.q.UpsertAlert(ctx, storage.UpsertAlertParams{
-		ProjectID:       projectID,
-		SourceType:      sourceType,
-		SourceID:        req.SourceID,
-		Title:           req.Title,
-		Content:         req.Content,
-		Url:             req.URL,
-		MatchedKeywords: matchedKeywords,
-		Severity:        severity,
+		ProjectID:            projectID,
+		SourceType:           sourceType,
+		SourceID:             req.SourceID,
+		Title:                req.Title,
+		Content:              req.Content,
+		Url:                  req.URL,
+		MatchedKeywords:      matchedKeywords,
+		Severity:             severity,
+		Tags:                 tags,
+		ClassificationReason: req.ClassificationReason,
+		MonitorSourceID:      monitorSourceID,
 	})
 	if err != nil {
 		return nil, false, fmt.Errorf("upserting alert: %w", err)
@@ -300,18 +323,29 @@ func parseAlertStatus(s string) (storage.AlertStatus, error) {
 }
 
 func storageAlertToInfo(a storage.Alert) *AlertInfo {
+	monitorSourceID := ""
+	if a.MonitorSourceID.Valid {
+		monitorSourceID = uuid.UUID(a.MonitorSourceID.Bytes).String()
+	}
+	tags := a.Tags
+	if tags == nil {
+		tags = []string{}
+	}
 	return &AlertInfo{
-		ID:              a.ID.String(),
-		ProjectID:       a.ProjectID.String(),
-		SourceType:      string(a.SourceType),
-		SourceID:        a.SourceID,
-		Title:           a.Title,
-		Content:         a.Content,
-		URL:             a.Url,
-		MatchedKeywords: a.MatchedKeywords,
-		Severity:        string(a.Severity),
-		Status:          string(a.Status),
-		CreatedAt:       a.CreatedAt.Time,
-		UpdatedAt:       a.UpdatedAt.Time,
+		ID:                   a.ID.String(),
+		ProjectID:            a.ProjectID.String(),
+		SourceType:           string(a.SourceType),
+		SourceID:             a.SourceID,
+		Title:                a.Title,
+		Content:              a.Content,
+		URL:                  a.Url,
+		MatchedKeywords:      a.MatchedKeywords,
+		Severity:             string(a.Severity),
+		Status:               string(a.Status),
+		Tags:                 tags,
+		ClassificationReason: a.ClassificationReason,
+		MonitorSourceID:      monitorSourceID,
+		CreatedAt:            a.CreatedAt.Time,
+		UpdatedAt:            a.UpdatedAt.Time,
 	}
 }

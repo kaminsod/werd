@@ -10,6 +10,7 @@ import RulesPage from "@/pages/project-rules";
 import ConnectionsPage from "@/pages/project-connections";
 import PostsPage from "@/pages/project-posts";
 import MembersPage from "@/pages/project-members";
+import ProcessingPage from "@/pages/project-processing";
 import SettingsPage from "@/pages/project-settings";
 
 export default function App() {
@@ -24,6 +25,7 @@ export default function App() {
           <Route path="alerts" element={<AlertsPage />} />
           <Route path="keywords" element={<KeywordsPage />} />
           <Route path="sources" element={<SourcesPage />} />
+          <Route path="processing" element={<ProcessingPage />} />
           <Route path="rules" element={<RulesPage />} />
           <Route path="connections" element={<ConnectionsPage />} />
           <Route path="posts" element={<PostsPage />} />

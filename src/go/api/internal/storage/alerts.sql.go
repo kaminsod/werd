@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const countAlerts = `-- name: CountAlerts :one
@@ -39,7 +40,7 @@ func (q *Queries) CountAlertsByStatus(ctx context.Context, arg CountAlertsByStat
 }
 
 const getAlertByID = `-- name: GetAlertByID :one
-SELECT id, project_id, source_type, source_id, title, content, url, matched_keywords, severity, status, created_at, updated_at
+SELECT id, project_id, source_type, source_id, title, content, url, matched_keywords, severity, status, created_at, updated_at, tags, classification_reason, monitor_source_id
 FROM alerts
 WHERE id = $1 AND project_id = $2
 `
@@ -65,12 +66,15 @@ func (q *Queries) GetAlertByID(ctx context.Context, arg GetAlertByIDParams) (Ale
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Tags,
+		&i.ClassificationReason,
+		&i.MonitorSourceID,
 	)
 	return i, err
 }
 
 const listAlerts = `-- name: ListAlerts :many
-SELECT id, project_id, source_type, source_id, title, content, url, matched_keywords, severity, status, created_at, updated_at
+SELECT id, project_id, source_type, source_id, title, content, url, matched_keywords, severity, status, created_at, updated_at, tags, classification_reason, monitor_source_id
 FROM alerts
 WHERE project_id = $1
 ORDER BY created_at DESC
@@ -105,6 +109,9 @@ func (q *Queries) ListAlerts(ctx context.Context, arg ListAlertsParams) ([]Alert
 			&i.Status,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Tags,
+			&i.ClassificationReason,
+			&i.MonitorSourceID,
 		); err != nil {
 			return nil, err
 		}
@@ -117,7 +124,7 @@ func (q *Queries) ListAlerts(ctx context.Context, arg ListAlertsParams) ([]Alert
 }
 
 const listAlertsBySourceType = `-- name: ListAlertsBySourceType :many
-SELECT id, project_id, source_type, source_id, title, content, url, matched_keywords, severity, status, created_at, updated_at
+SELECT id, project_id, source_type, source_id, title, content, url, matched_keywords, severity, status, created_at, updated_at, tags, classification_reason, monitor_source_id
 FROM alerts
 WHERE project_id = $1 AND source_type = $2
 ORDER BY created_at DESC
@@ -158,6 +165,9 @@ func (q *Queries) ListAlertsBySourceType(ctx context.Context, arg ListAlertsBySo
 			&i.Status,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Tags,
+			&i.ClassificationReason,
+			&i.MonitorSourceID,
 		); err != nil {
 			return nil, err
 		}
@@ -170,7 +180,7 @@ func (q *Queries) ListAlertsBySourceType(ctx context.Context, arg ListAlertsBySo
 }
 
 const listAlertsByStatus = `-- name: ListAlertsByStatus :many
-SELECT id, project_id, source_type, source_id, title, content, url, matched_keywords, severity, status, created_at, updated_at
+SELECT id, project_id, source_type, source_id, title, content, url, matched_keywords, severity, status, created_at, updated_at, tags, classification_reason, monitor_source_id
 FROM alerts
 WHERE project_id = $1 AND status = $2
 ORDER BY created_at DESC
@@ -211,6 +221,9 @@ func (q *Queries) ListAlertsByStatus(ctx context.Context, arg ListAlertsByStatus
 			&i.Status,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Tags,
+			&i.ClassificationReason,
+			&i.MonitorSourceID,
 		); err != nil {
 			return nil, err
 		}
@@ -226,7 +239,7 @@ const updateAlertStatus = `-- name: UpdateAlertStatus :one
 UPDATE alerts
 SET status = $3
 WHERE id = $1 AND project_id = $2
-RETURNING id, project_id, source_type, source_id, title, content, url, matched_keywords, severity, status, created_at, updated_at
+RETURNING id, project_id, source_type, source_id, title, content, url, matched_keywords, severity, status, created_at, updated_at, tags, classification_reason, monitor_source_id
 `
 
 type UpdateAlertStatusParams struct {
@@ -251,31 +264,40 @@ func (q *Queries) UpdateAlertStatus(ctx context.Context, arg UpdateAlertStatusPa
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Tags,
+		&i.ClassificationReason,
+		&i.MonitorSourceID,
 	)
 	return i, err
 }
 
 const upsertAlert = `-- name: UpsertAlert :one
-INSERT INTO alerts (project_id, source_type, source_id, title, content, url, matched_keywords, severity)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+INSERT INTO alerts (project_id, source_type, source_id, title, content, url, matched_keywords, severity, tags, classification_reason, monitor_source_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 ON CONFLICT (project_id, source_type, source_id)
 DO UPDATE SET
   title = EXCLUDED.title,
   content = EXCLUDED.content,
   url = EXCLUDED.url,
-  matched_keywords = EXCLUDED.matched_keywords
-RETURNING id, project_id, source_type, source_id, title, content, url, matched_keywords, severity, status, created_at, updated_at
+  matched_keywords = EXCLUDED.matched_keywords,
+  tags = EXCLUDED.tags,
+  classification_reason = EXCLUDED.classification_reason,
+  monitor_source_id = EXCLUDED.monitor_source_id
+RETURNING id, project_id, source_type, source_id, title, content, url, matched_keywords, severity, status, created_at, updated_at, tags, classification_reason, monitor_source_id
 `
 
 type UpsertAlertParams struct {
-	ProjectID       uuid.UUID     `json:"project_id"`
-	SourceType      MonitorType   `json:"source_type"`
-	SourceID        string        `json:"source_id"`
-	Title           string        `json:"title"`
-	Content         string        `json:"content"`
-	Url             string        `json:"url"`
-	MatchedKeywords []string      `json:"matched_keywords"`
-	Severity        AlertSeverity `json:"severity"`
+	ProjectID            uuid.UUID     `json:"project_id"`
+	SourceType           MonitorType   `json:"source_type"`
+	SourceID             string        `json:"source_id"`
+	Title                string        `json:"title"`
+	Content              string        `json:"content"`
+	Url                  string        `json:"url"`
+	MatchedKeywords      []string      `json:"matched_keywords"`
+	Severity             AlertSeverity `json:"severity"`
+	Tags                 []string      `json:"tags"`
+	ClassificationReason string        `json:"classification_reason"`
+	MonitorSourceID      pgtype.UUID   `json:"monitor_source_id"`
 }
 
 func (q *Queries) UpsertAlert(ctx context.Context, arg UpsertAlertParams) (Alert, error) {
@@ -288,6 +310,9 @@ func (q *Queries) UpsertAlert(ctx context.Context, arg UpsertAlertParams) (Alert
 		arg.Url,
 		arg.MatchedKeywords,
 		arg.Severity,
+		arg.Tags,
+		arg.ClassificationReason,
+		arg.MonitorSourceID,
 	)
 	var i Alert
 	err := row.Scan(
@@ -303,6 +328,9 @@ func (q *Queries) UpsertAlert(ctx context.Context, arg UpsertAlertParams) (Alert
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Tags,
+		&i.ClassificationReason,
+		&i.MonitorSourceID,
 	)
 	return i, err
 }

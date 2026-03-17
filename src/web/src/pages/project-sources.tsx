@@ -40,6 +40,7 @@ export default function SourcesPage() {
   const [formCheckInbox, setFormCheckInbox] = useState(true);
   const [formCheckMentions, setFormCheckMentions] = useState(true);
   const [formUsername, setFormUsername] = useState("");
+  const [formHandle, setFormHandle] = useState("");
 
   function resetForm() {
     setFormType("web");
@@ -68,6 +69,11 @@ export default function SourcesPage() {
       setFormThreadId((cfg.thread_id as string) || "");
       setFormItemId(cfg.item_id ? String(cfg.item_id) : "");
       setFormKeywords(Array.isArray(cfg.keywords) ? (cfg.keywords as string[]).join(", ") : "");
+      setFormPollInterval(cfg.poll_interval_secs ? String(cfg.poll_interval_secs) : "300");
+      setFormConfig(JSON.stringify(cfg, null, 2));
+    } else if (src.type === "bluesky") {
+      setFormMode((cfg.mode as string) || "account");
+      setFormHandle((cfg.handle as string) || "");
       setFormPollInterval(cfg.poll_interval_secs ? String(cfg.poll_interval_secs) : "300");
       setFormConfig(JSON.stringify(cfg, null, 2));
     } else {
@@ -112,10 +118,14 @@ export default function SourcesPage() {
       return base;
     }
     if (formType === "bluesky") {
-      return {
+      const base: Record<string, unknown> = {
         mode: formMode,
         poll_interval_secs: parseInt(formPollInterval) || 300,
       };
+      if (formMode === "user") {
+        base.handle = formHandle;
+      }
+      return base;
     }
     // Fallback: parse JSON.
     try {
@@ -212,12 +222,16 @@ export default function SourcesPage() {
                   {formType === "hn" && (
                     <>
                       <option value="keywords">Keywords (new stories)</option>
+                      <option value="new">All New Stories</option>
                       <option value="thread">Thread (comments)</option>
                       <option value="account">Account (submission replies)</option>
                     </>
                   )}
                   {formType === "bluesky" && (
-                    <option value="account">Account (notifications)</option>
+                    <>
+                      <option value="account">Account (notifications)</option>
+                      <option value="user">User Feed (posts by a user)</option>
+                    </>
                   )}
                 </select>
               </div>
@@ -229,10 +243,7 @@ export default function SourcesPage() {
                     <label className="mb-1 block text-xs font-medium text-gray-600">Subreddit</label>
                     <input value={formSubreddit} onChange={(e) => setFormSubreddit(e.target.value)} required placeholder="golang" className="w-full rounded border px-3 py-2 text-sm" />
                   </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">Keywords (optional, comma-separated)</label>
-                    <input value={formKeywords} onChange={(e) => setFormKeywords(e.target.value)} placeholder="self-hosted, monitoring" className="w-full rounded border px-3 py-2 text-sm" />
-                  </div>
+                  <p className="text-xs text-gray-500">All new posts will be fetched. Use processing rules to filter by keywords, regex, or LLM classification.</p>
                 </div>
               )}
               {formType === "reddit" && formMode === "thread" && (
@@ -263,8 +274,7 @@ export default function SourcesPage() {
               {/* HN fields */}
               {formType === "hn" && formMode === "keywords" && (
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-600">Keywords (comma-separated)</label>
-                  <input value={formKeywords} onChange={(e) => setFormKeywords(e.target.value)} placeholder="Show HN, self-hosted" className="w-full rounded border px-3 py-2 text-sm" />
+                  <p className="text-xs text-gray-500">Monitors new HN stories. All stories are fetched; use processing rules to filter by keywords, regex, or LLM classification.</p>
                 </div>
               )}
               {formType === "hn" && formMode === "thread" && (
@@ -280,9 +290,21 @@ export default function SourcesPage() {
                 </div>
               )}
 
+              {/* HN: new mode has no extra fields (monitors all new stories) */}
+              {formType === "hn" && formMode === "new" && (
+                <p className="text-xs text-gray-500">Monitors all new HN stories. Use processing rules to filter by keywords, regex, or LLM classification.</p>
+              )}
+
               {/* Bluesky: account mode has no extra fields (uses platform connection creds) */}
               {formType === "bluesky" && formMode === "account" && (
                 <p className="text-xs text-gray-500">Monitors replies, mentions, and quotes on your Bluesky account. Credentials are taken from your Bluesky platform connection.</p>
+              )}
+              {formType === "bluesky" && formMode === "user" && (
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-600">Bluesky Handle</label>
+                  <input value={formHandle} onChange={(e) => setFormHandle(e.target.value)} required placeholder="user.bsky.social" className="w-full rounded border px-3 py-2 text-sm" />
+                  <p className="mt-1 text-xs text-gray-500">Monitors all posts by this user. Credentials are taken from your Bluesky platform connection.</p>
+                </div>
               )}
 
               {/* Poll interval */}

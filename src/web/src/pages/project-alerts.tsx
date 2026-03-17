@@ -21,7 +21,7 @@ const STATUS_COLORS: Record<AlertStatus, string> = {
 };
 
 const STATUSES: AlertStatus[] = ["new", "seen", "triaged", "dismissed", "responded"];
-const SOURCE_TYPES = ["reddit", "hn", "web", "rss", "github"];
+const SOURCE_TYPES = ["reddit", "hn", "web", "rss", "github", "bluesky"];
 const PAGE_SIZE = 20;
 
 export default function AlertsPage() {
@@ -158,6 +158,15 @@ function AlertRow({
         <span className="min-w-0 flex-1 truncate text-sm font-medium">
           {alert.title || "(no title)"}
         </span>
+        {alert.tags && alert.tags.length > 0 && (
+          <span className="flex shrink-0 gap-1">
+            {alert.tags.map((tag) => (
+              <span key={tag} className="rounded bg-blue-50 px-1.5 py-0.5 text-xs text-blue-700">
+                {tag}
+              </span>
+            ))}
+          </span>
+        )}
         {alert.matched_keywords.length > 0 && (
           <span className="shrink-0 text-xs text-gray-400">
             {alert.matched_keywords.length} keyword{alert.matched_keywords.length !== 1 ? "s" : ""}
@@ -190,6 +199,24 @@ function AlertRow({
                   {kw}
                 </span>
               ))}
+            </div>
+          )}
+
+          {alert.tags && alert.tags.length > 0 && (
+            <div className="mb-3">
+              <span className="text-xs font-medium text-gray-500">Tags: </span>
+              {alert.tags.map((tag) => (
+                <span key={tag} className="mr-1 rounded bg-blue-50 px-1.5 py-0.5 text-xs text-blue-700">
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {alert.classification_reason && (
+            <div className="mb-3">
+              <span className="text-xs font-medium text-gray-500">Classification: </span>
+              <span className="text-xs text-gray-600">{alert.classification_reason}</span>
             </div>
           )}
 

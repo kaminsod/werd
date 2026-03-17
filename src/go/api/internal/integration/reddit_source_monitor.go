@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 	"time"
 )
 
@@ -78,8 +77,7 @@ func NewRedditSubredditMonitor() *RedditSubredditMonitor {
 
 func (m *RedditSubredditMonitor) Poll(ctx context.Context, config, watermark, credentials json.RawMessage) ([]MonitoredItem, json.RawMessage, error) {
 	var cfg struct {
-		Subreddit string   `json:"subreddit"`
-		Keywords  []string `json:"keywords"`
+		Subreddit string `json:"subreddit"`
 	}
 	if err := json.Unmarshal(config, &cfg); err != nil {
 		return nil, watermark, fmt.Errorf("reddit subreddit: invalid config: %w", err)
@@ -153,21 +151,6 @@ func (m *RedditSubredditMonitor) Poll(ctx context.Context, config, watermark, cr
 		}
 		if wm.LastSeenID != "" && post.Name == wm.LastSeenID {
 			break // reached previously seen post
-		}
-
-		// Optional keyword filter.
-		if len(cfg.Keywords) > 0 {
-			text := strings.ToLower(post.Title + " " + post.Selftext)
-			matched := false
-			for _, kw := range cfg.Keywords {
-				if strings.Contains(text, strings.ToLower(kw)) {
-					matched = true
-					break
-				}
-			}
-			if !matched {
-				continue
-			}
 		}
 
 		content := post.Selftext

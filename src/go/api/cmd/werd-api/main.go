@@ -75,6 +75,17 @@ func main() {
 	monitorSourceService := service.NewMonitorSource(queries)
 	platformService := service.NewPlatform(queries, adapterRegistry)
 	postService := service.NewPost(queries, platformService, adapterRegistry)
+	processingRuleService := service.NewProcessingRuleService(queries)
+
+	// LLM client (optional).
+	var llmClient *service.LLMClient
+	if cfg.LLMApiURL != "" {
+		llmClient = service.NewLLMClient(cfg.LLMApiURL, cfg.LLMApiKey, cfg.LLMModel)
+		log.Printf("LLM classification enabled: %s", cfg.LLMApiURL)
+	}
+
+	// Processing pipeline.
+	processingPipeline := service.NewProcessingPipeline(queries, llmClient)
 
 	// Reply monitoring: platform readers.
 	readerRegistry := integration.NewReaderRegistry()
@@ -91,10 +102,12 @@ func main() {
 	sourceMonitorRegistry.Register("reddit:account", integration.NewRedditAccountMonitor())
 	sourceMonitorRegistry.Register("hn:thread", integration.NewHNThreadMonitor())
 	sourceMonitorRegistry.Register("hn:keywords", integration.NewHNKeywordMonitor())
+	sourceMonitorRegistry.Register("hn:new", integration.NewHNNewMonitor())
 	sourceMonitorRegistry.Register("hn:account", integration.NewHNAccountMonitor())
 	sourceMonitorRegistry.Register("bluesky:account", integration.NewBlueskyAccountMonitor())
+	sourceMonitorRegistry.Register("bluesky:user", integration.NewBlueskyUserMonitor())
 
-	sourcePoller := service.NewSourcePoller(queries, platformService, alertService, sourceMonitorRegistry, 60*time.Second)
+	sourcePoller := service.NewSourcePoller(queries, platformService, alertService, sourceMonitorRegistry, processingPipeline, 60*time.Second)
 
 	// Seed admin user from env vars (idempotent).
 	if cfg.AdminEmail != "" && cfg.AdminPassword != "" {
@@ -114,7 +127,8 @@ func main() {
 	notificationHandler := handler.NewNotification(notificationService)
 	monitorSourceHandler := handler.NewMonitorSource(monitorSourceService)
 	platformHandler := handler.NewPlatform(platformService, postService, replyMonitor)
-	r := router.New(authService, authHandler, projectHandler, alertHandler, notificationHandler, platformHandler, monitorSourceHandler, queries, cfg.InternalAPIKey)
+	processingHandler := handler.NewProcessing(processingRuleService)
+	r := router.New(authService, authHandler, projectHandler, alertHandler, notificationHandler, platformHandler, monitorSourceHandler, processingHandler, queries, cfg.InternalAPIKey)
 
 	// HTTP server with graceful shutdown.
 	addr := fmt.Sprintf(":%s", cfg.APIPort)

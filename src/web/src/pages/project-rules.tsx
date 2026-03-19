@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { useParams } from "react-router";
+import { useParams, Link } from "react-router";
 import { useRules, useCreateRule, useUpdateRule, useDeleteRule } from "@/hooks/use-rules";
 import InfoIcon from "@/components/info-icon";
 import { minSeverity as minSevHelp, ntfyTopic as ntfyHelp, webhookUrl as webhookHelp } from "@/lib/help-content";
@@ -216,6 +216,7 @@ export default function RulesPage() {
                 <span className="text-xs text-gray-400 font-mono">{configSummary(rule)}</span>
               </div>
               <div className="flex items-center gap-2">
+                <Link to={rule.id} className="rounded px-2 py-1 text-xs text-blue-600 hover:bg-blue-50">View</Link>
                 <button onClick={() => startEdit(rule)} className="rounded px-2 py-1 text-xs text-blue-600 hover:bg-blue-50">
                   Edit
                 </button>

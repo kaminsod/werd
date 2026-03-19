@@ -58,6 +58,7 @@ type connectionResponse struct {
 	ProjectID string    `json:"project_id"`
 	Platform  string    `json:"platform"`
 	Method    string    `json:"method"`
+	Target    string    `json:"target,omitempty"`
 	Enabled   bool      `json:"enabled"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
@@ -554,7 +555,7 @@ func (h *PlatformHandler) SetPostMonitor(w http.ResponseWriter, r *http.Request)
 func connInfoToResponse(c *service.ConnectionInfo) *connectionResponse {
 	return &connectionResponse{
 		ID: c.ID, ProjectID: c.ProjectID, Platform: c.Platform, Method: c.Method,
-		Enabled: c.Enabled, CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt,
+		Target: c.Target, Enabled: c.Enabled, CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt,
 	}
 }
 

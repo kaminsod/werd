@@ -137,16 +137,8 @@ func (s *Auth) ChangePassword(ctx context.Context, userID, currentPassword, newP
 }
 
 // SeedAdmin creates the initial admin user if it doesn't already exist.
+// If the user already exists, it updates the password hash to match the configured password.
 func (s *Auth) SeedAdmin(ctx context.Context, email, password string) error {
-	exists, err := s.q.UserExistsByEmail(ctx, email)
-	if err != nil {
-		return fmt.Errorf("checking admin existence: %w", err)
-	}
-	if exists {
-		log.Printf("admin user %s already exists, skipping seed", email)
-		return nil
-	}
-
 	if len(password) < 8 {
 		return errors.New("admin password must be at least 8 characters")
 	}
@@ -156,16 +148,33 @@ func (s *Auth) SeedAdmin(ctx context.Context, email, password string) error {
 		return fmt.Errorf("hashing admin password: %w", err)
 	}
 
-	_, err = s.q.CreateUser(ctx, storage.CreateUserParams{
-		Email:        email,
-		PasswordHash: string(hash),
-		Name:         "Admin",
-	})
+	user, err := s.q.GetUserByEmail(ctx, email)
 	if err != nil {
-		return fmt.Errorf("creating admin user: %w", err)
+		// User doesn't exist — create it.
+		_, err = s.q.CreateUser(ctx, storage.CreateUserParams{
+			Email:        email,
+			PasswordHash: string(hash),
+			Name:         "Admin",
+		})
+		if err != nil {
+			return fmt.Errorf("creating admin user: %w", err)
+		}
+		log.Printf("admin user %s created", email)
+		return nil
 	}
 
-	log.Printf("admin user %s created", email)
+	// User exists — update password hash to match configured password.
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
+		if err := s.q.UpdateUserPassword(ctx, storage.UpdateUserPasswordParams{
+			PasswordHash: string(hash),
+			ID:           user.ID,
+		}); err != nil {
+			return fmt.Errorf("updating admin password: %w", err)
+		}
+		log.Printf("admin user %s password updated", email)
+	} else {
+		log.Printf("admin user %s already exists, password unchanged", email)
+	}
 	return nil
 }
 

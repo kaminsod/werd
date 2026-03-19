@@ -2,6 +2,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, apiMutate } from "@/lib/api";
 import type { Source } from "@/types/api";
 
+export function useSource(projectId: string, sourceId: string) {
+  return useQuery({
+    queryKey: ["projects", projectId, "sources", sourceId],
+    queryFn: () => api<Source>(`/projects/${projectId}/sources/${sourceId}`),
+    enabled: !!projectId && !!sourceId,
+  });
+}
+
 export function useSources(projectId: string) {
   return useQuery({
     queryKey: ["projects", projectId, "sources"],

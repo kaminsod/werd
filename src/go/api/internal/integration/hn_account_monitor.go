@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 )
@@ -84,15 +85,26 @@ func (m *HNAccountMonitor) Poll(ctx context.Context, config, watermark, _ json.R
 					continue
 				}
 
-				// Resolve the story title: use parent's title if it's a story,
-				// otherwise walk up the parent chain to find the root story.
-				storyTitle := parent.Title
-				if storyTitle == "" {
-					storyTitle = m.reader.resolveStoryTitle(ctx, parent, 10)
-				}
-				title := fmt.Sprintf("Reply by %s on \"%s\"", kid.By, storyTitle)
-				if storyTitle == "" {
-					title = fmt.Sprintf("Reply by %s on your comment", kid.By)
+				var title string
+				if parent.Type == "story" || parent.Title != "" {
+					// Parent is a story
+					displayTitle := strings.TrimSpace(parent.Title)
+					if displayTitle == "" {
+						displayTitle = strings.TrimSpace(m.reader.resolveStoryTitle(ctx, parent, 10))
+					}
+					if displayTitle != "" {
+						title = fmt.Sprintf("%s commented on \"%s\"", kid.By, displayTitle)
+					} else {
+						title = fmt.Sprintf("%s replied to %s", kid.By, parent.By)
+					}
+				} else {
+					// Parent is a comment
+					storyTitle := strings.TrimSpace(m.reader.resolveStoryTitle(ctx, parent, 10))
+					if storyTitle != "" {
+						title = fmt.Sprintf("%s replied to %s on \"%s\"", kid.By, parent.By, storyTitle)
+					} else {
+						title = fmt.Sprintf("%s replied to %s", kid.By, parent.By)
+					}
 				}
 
 				mu.Lock()

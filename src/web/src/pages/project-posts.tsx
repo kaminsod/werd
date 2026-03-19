@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { useParams } from "react-router";
+import { useParams, Link } from "react-router";
 import { usePosts, useCreatePost, useUpdatePost, useDeletePost, usePublishPost, useSetPostMonitor } from "@/hooks/use-posts";
 import { useConnections } from "@/hooks/use-connections";
 import InfoIcon from "@/components/info-icon";
@@ -50,6 +50,12 @@ export default function PostsPage() {
     ?.filter((c) => c.enabled && ((c.method === "api" && API_PUB.has(c.platform)) || (c.method === "browser" && BROWSER_PUB.has(c.platform))))
     .map((c) => c.platform)
     .filter((v, i, a) => a.indexOf(v) === i) ?? [];
+
+  // Build platform → target lookup from connections.
+  const platformTargets: Record<string, string> = {};
+  connections?.forEach((c) => {
+    if (c.target && !platformTargets[c.platform]) platformTargets[c.platform] = c.target;
+  });
 
   // Determine if any selected platform needs a title (Reddit, HN).
   const needsTitle = selectedPlatforms.some((p) => p === "reddit" || p === "hn");
@@ -209,7 +215,10 @@ export default function PostsPage() {
                       checked={selectedPlatforms.includes(p)}
                       onChange={() => togglePlatform(p)}
                     />
-                    <span className="text-sm">{p}</span>
+                    <span className="text-sm">
+                      {p}
+                      {platformTargets[p] && <span className="ml-1 text-gray-400">({platformTargets[p]})</span>}
+                    </span>
                   </label>
                 ))}
               </div>
@@ -290,7 +299,10 @@ export default function PostsPage() {
                   {post.status}
                 </span>
                 {post.platforms.map((p) => (
-                  <span key={p} className="rounded bg-indigo-50 px-2 py-0.5 text-xs text-indigo-600">{p}</span>
+                  <span key={p} className="rounded bg-indigo-50 px-2 py-0.5 text-xs text-indigo-600">
+                    {p}
+                    {platformTargets[p] && <span className="ml-1 text-indigo-400">{platformTargets[p]}</span>}
+                  </span>
                 ))}
                 <span className="ml-auto text-xs text-gray-400">
                   {post.published_at
@@ -298,15 +310,17 @@ export default function PostsPage() {
                     : new Date(post.created_at).toLocaleString()}
                 </span>
               </div>
-              {post.title && (
-                <p className="mb-1 text-sm font-medium text-gray-900">{post.title}</p>
-              )}
-              {post.url && (
-                <p className="mb-1 text-xs text-blue-600 truncate">{post.url}</p>
-              )}
-              <p className="mb-2 whitespace-pre-wrap text-sm text-gray-700">
-                {post.content.length > 200 ? post.content.slice(0, 200) + "..." : post.content}
-              </p>
+              <Link to={post.id} className="block hover:underline">
+                {post.title && (
+                  <p className="mb-1 text-sm font-medium text-gray-900">{post.title}</p>
+                )}
+                {post.url && (
+                  <p className="mb-1 text-xs text-blue-600 truncate">{post.url}</p>
+                )}
+                <p className="mb-2 whitespace-pre-wrap text-sm text-gray-700">
+                  {post.content.length > 200 ? post.content.slice(0, 200) + "..." : post.content}
+                </p>
+              </Link>
               <div className="flex gap-2">
                 {post.status === "draft" && (
                   <>

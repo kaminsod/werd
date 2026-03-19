@@ -2,6 +2,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, apiMutate } from "@/lib/api";
 import type { Connection } from "@/types/api";
 
+export function useConnection(projectId: string, connId: string) {
+  return useQuery({
+    queryKey: ["projects", projectId, "connections", connId],
+    queryFn: () => api<Connection>(`/projects/${projectId}/connections/${connId}`),
+    enabled: !!projectId && !!connId,
+  });
+}
+
 export function useConnections(projectId: string) {
   return useQuery({
     queryKey: ["projects", projectId, "connections"],

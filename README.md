@@ -454,7 +454,7 @@ LLM_API_KEY=
 LLM_MODEL=
 
 # ── Initial project setup (subsequent projects created via Dashboard) ──
-WERD_ADMIN_EMAIL=admin@yourdomain.com
+WERD_ADMIN_EMAIL=admin@werd.io
 WERD_ADMIN_PASSWORD=<generated>
 ```
 

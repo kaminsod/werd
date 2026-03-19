@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { useParams } from "react-router";
+import { useParams, Link } from "react-router";
 import {
   useProcessingRules,
   useCreateProcessingRule,
@@ -493,9 +493,9 @@ export default function ProcessingPage() {
                 <span className={`shrink-0 rounded px-2 py-0.5 text-xs font-medium ${RULE_TYPE_COLORS[rule.rule_type]}`}>
                   {rule.rule_type}
                 </span>
-                <span className="min-w-0 flex-1 text-sm font-medium">
+                <Link to={rule.id} className="min-w-0 flex-1 text-sm font-medium text-blue-600 hover:underline">
                   {rule.name || "(unnamed)"}
-                </span>
+                </Link>
                 {rule.source_id && (
                   <span className="shrink-0 rounded bg-gray-50 px-2 py-0.5 text-xs text-gray-500">
                     source-scoped

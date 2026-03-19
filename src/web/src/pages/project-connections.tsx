@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { useParams } from "react-router";
+import { useParams, Link } from "react-router";
 import { useConnections, useCreateConnection, useUpdateConnection, useDeleteConnection, useCreateAccount } from "@/hooks/use-connections";
 import InfoIcon from "@/components/info-icon";
 import { platformCredentials as credsHelp } from "@/lib/help-content";
@@ -299,6 +299,9 @@ export default function ConnectionsPage() {
                 <span className={`rounded px-2 py-0.5 text-xs ${conn.method === "browser" ? "bg-purple-100 text-purple-700" : "bg-sky-100 text-sky-700"}`}>
                   {conn.method}
                 </span>
+                {conn.target && (
+                  <span className="rounded bg-gray-50 px-2 py-0.5 text-xs text-gray-600">{conn.target}</span>
+                )}
                 <span className={`rounded px-2 py-0.5 text-xs ${conn.enabled ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-400"}`}>
                   {conn.enabled ? "enabled" : "disabled"}
                 </span>
@@ -310,6 +313,7 @@ export default function ConnectionsPage() {
                 </span>
               </div>
               <div className="flex items-center gap-2">
+                <Link to={conn.id} className="rounded px-2 py-1 text-xs text-blue-600 hover:bg-blue-50">View</Link>
                 <button onClick={() => startEdit(conn)} className="rounded px-2 py-1 text-xs text-blue-600 hover:bg-blue-50">
                   Edit
                 </button>

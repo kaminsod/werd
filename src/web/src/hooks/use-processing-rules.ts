@@ -2,6 +2,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, apiMutate } from "@/lib/api";
 import type { ProcessingRule } from "@/types/api";
 
+export function useProcessingRule(projectId: string, ruleId: string) {
+  return useQuery({
+    queryKey: ["projects", projectId, "processing-rules", ruleId],
+    queryFn: () => api<ProcessingRule>(`/projects/${projectId}/processing-rules/${ruleId}`),
+    enabled: !!projectId && !!ruleId,
+  });
+}
+
 export function useProcessingRules(projectId: string) {
   return useQuery({
     queryKey: ["projects", projectId, "processing-rules"],

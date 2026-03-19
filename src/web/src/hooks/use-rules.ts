@@ -2,6 +2,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, apiMutate } from "@/lib/api";
 import type { Rule } from "@/types/api";
 
+export function useRule(projectId: string, ruleId: string) {
+  return useQuery({
+    queryKey: ["projects", projectId, "rules", ruleId],
+    queryFn: () => api<Rule>(`/projects/${projectId}/rules/${ruleId}`),
+    enabled: !!projectId && !!ruleId,
+  });
+}
+
 export function useRules(projectId: string) {
   return useQuery({
     queryKey: ["projects", projectId, "rules"],

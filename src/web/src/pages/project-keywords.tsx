@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { useParams } from "react-router";
+import { useParams, Link } from "react-router";
 import { useKeywords, useCreateKeyword, useDeleteKeyword } from "@/hooks/use-keywords";
 import InfoIcon from "@/components/info-icon";
 import { matchType as matchTypeHelp, navKeywords as keywordsHelp } from "@/lib/help-content";
@@ -104,7 +104,7 @@ export default function KeywordsPage() {
                 <span className={`rounded px-2 py-0.5 text-xs font-medium ${MATCH_TYPE_COLORS[kw.match_type]}`}>
                   {kw.match_type}
                 </span>
-                <span className="text-sm font-mono">{kw.keyword}</span>
+                <Link to={kw.id} className="text-sm font-mono text-blue-600 hover:underline">{kw.keyword}</Link>
               </div>
               <div className="flex items-center gap-3">
                 <span className="text-xs text-gray-400">

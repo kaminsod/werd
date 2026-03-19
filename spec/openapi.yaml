@@ -1458,6 +1458,9 @@ components:
         method:
           type: string
           enum: [api, browser]
+        target:
+          type: string
+          description: Non-secret display target (e.g. r/golang, @user.bsky.social)
         enabled:
           type: boolean
         created_at:

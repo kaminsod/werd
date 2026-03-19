@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { useParams } from "react-router";
+import { useParams, Link } from "react-router";
 import { useMembers, useAddMember, useUpdateMemberRole, useRemoveMember } from "@/hooks/use-members";
 import { useAuthStore } from "@/stores/auth";
 import InfoIcon from "@/components/info-icon";
@@ -136,7 +136,7 @@ export default function MembersPage() {
                   {member.role}
                 </span>
                 <div>
-                  <span className="text-sm font-medium">{member.name}</span>
+                  <Link to={member.user_id} className="text-sm font-medium text-blue-600 hover:underline">{member.name}</Link>
                   <span className="ml-2 text-sm text-gray-500">{member.email}</span>
                 </div>
                 {member.user_id === currentUser?.id && (

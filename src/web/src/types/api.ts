@@ -126,6 +126,7 @@ export interface Connection {
   project_id: string;
   platform: string;
   method: ConnectionMethod;
+  target?: string;
   enabled: boolean;
   created_at: string;
   updated_at: string;

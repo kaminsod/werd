@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -27,6 +28,7 @@ type ConnectionInfo struct {
 	ProjectID string
 	Platform  string
 	Method    string
+	Target    string
 	Enabled   bool
 	CreatedAt time.Time
 	UpdatedAt time.Time
@@ -289,17 +291,51 @@ func makeConnInfo(id uuid.UUID, projectID uuid.UUID, platform, method string, en
 }
 
 func connInfoFromCreate(c storage.CreatePlatformConnectionRow) *ConnectionInfo {
-	return makeConnInfo(c.ID, c.ProjectID, c.Platform, c.Method, c.Enabled, c.CreatedAt.Time, c.UpdatedAt.Time)
+	ci := makeConnInfo(c.ID, c.ProjectID, c.Platform, c.Method, c.Enabled, c.CreatedAt.Time, c.UpdatedAt.Time)
+	ci.Target = extractTarget(c.Platform, c.Credentials)
+	return ci
 }
 
 func connInfoFromList(c storage.ListPlatformConnectionsRow) *ConnectionInfo {
-	return makeConnInfo(c.ID, c.ProjectID, c.Platform, c.Method, c.Enabled, c.CreatedAt.Time, c.UpdatedAt.Time)
+	ci := makeConnInfo(c.ID, c.ProjectID, c.Platform, c.Method, c.Enabled, c.CreatedAt.Time, c.UpdatedAt.Time)
+	ci.Target = extractTarget(c.Platform, c.Credentials)
+	return ci
 }
 
 func connInfoFromGet(c storage.GetPlatformConnectionByIDRow) *ConnectionInfo {
-	return makeConnInfo(c.ID, c.ProjectID, c.Platform, c.Method, c.Enabled, c.CreatedAt.Time, c.UpdatedAt.Time)
+	ci := makeConnInfo(c.ID, c.ProjectID, c.Platform, c.Method, c.Enabled, c.CreatedAt.Time, c.UpdatedAt.Time)
+	ci.Target = extractTarget(c.Platform, c.Credentials)
+	return ci
 }
 
 func connInfoFromUpdate(c storage.UpdatePlatformConnectionRow) *ConnectionInfo {
-	return makeConnInfo(c.ID, c.ProjectID, c.Platform, c.Method, c.Enabled, c.CreatedAt.Time, c.UpdatedAt.Time)
+	ci := makeConnInfo(c.ID, c.ProjectID, c.Platform, c.Method, c.Enabled, c.CreatedAt.Time, c.UpdatedAt.Time)
+	ci.Target = extractTarget(c.Platform, c.Credentials)
+	return ci
+}
+
+// extractTarget extracts a safe, non-secret display string from credential JSON.
+func extractTarget(platform string, credentials []byte) string {
+	var creds map[string]interface{}
+	if err := json.Unmarshal(credentials, &creds); err != nil {
+		return ""
+	}
+	switch platform {
+	case "reddit":
+		if sub, ok := creds["subreddit"].(string); ok && sub != "" {
+			return "r/" + sub
+		}
+	case "bluesky":
+		if id, ok := creds["identifier"].(string); ok && id != "" {
+			if !strings.HasPrefix(id, "@") {
+				return "@" + id
+			}
+			return id
+		}
+	case "hn":
+		if user, ok := creds["username"].(string); ok && user != "" {
+			return user
+		}
+	}
+	return ""
 }

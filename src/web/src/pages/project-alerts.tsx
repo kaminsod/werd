@@ -3,6 +3,7 @@ import { useParams, Link } from "react-router";
 import { useAlerts, useUpdateAlertStatus } from "@/hooks/use-alerts";
 import { useSources } from "@/hooks/use-sources";
 import InfoIcon from "@/components/info-icon";
+import AlertTitle from "@/components/alert-title";
 import { alertSeverity as severityHelp, alertStatus as statusHelp } from "@/lib/help-content";
 import type { Alert, AlertSeverity, AlertStatus, Source } from "@/types/api";
 
@@ -22,6 +23,7 @@ const STATUS_COLORS: Record<AlertStatus, string> = {
 };
 
 const STATUSES: AlertStatus[] = ["new", "seen", "triaged", "dismissed", "responded"];
+
 const SOURCE_TYPES = ["reddit", "hn", "web", "rss", "github", "bluesky"];
 const PAGE_SIZE = 20;
 
@@ -132,17 +134,23 @@ export default function AlertsPage() {
   );
 }
 
-function sourceLabel(alert: Alert, sources?: Source[]): string {
+function sourceDetailLabel(src: Source): string {
+  const cfg = src.config;
+  const detail = cfg.username ?? cfg.subreddit ?? cfg.item_id ?? cfg.url ?? null;
+  return detail ? `${src.type} — ${detail}` : src.type;
+}
+
+function resolveSource(alert: Alert, sources?: Source[]): { label: string; linkTo: string } {
   if (alert.monitor_source_id && sources) {
     const src = sources.find((s) => s.id === alert.monitor_source_id);
-    if (src) {
-      const cfg = src.config;
-      const detail =
-        cfg.username ?? cfg.subreddit ?? cfg.item_id ?? cfg.url ?? null;
-      return detail ? `${src.type} — ${detail}` : src.type;
-    }
+    if (src) return { label: sourceDetailLabel(src), linkTo: `../sources/${src.id}` };
   }
-  return alert.source_type;
+  // Fallback: find a source matching this alert's source_type
+  if (sources) {
+    const byType = sources.filter((s) => s.type === alert.source_type);
+    if (byType.length === 1) return { label: sourceDetailLabel(byType[0]), linkTo: `../sources/${byType[0].id}` };
+  }
+  return { label: alert.source_type, linkTo: "../sources" };
 }
 
 function AlertRow({
@@ -158,11 +166,13 @@ function AlertRow({
   onToggle: () => void;
   onStatusChange: (alertId: string, status: string) => void;
 }) {
+  const resolved = resolveSource(alert, sources);
+
   return (
     <div className="rounded border bg-white">
-      <button
+      <div
         onClick={onToggle}
-        className="flex w-full items-center gap-3 p-3 text-left hover:bg-gray-50"
+        className="flex w-full cursor-pointer items-center gap-3 p-3 text-left hover:bg-gray-50"
       >
         <span className={`shrink-0 rounded px-2 py-0.5 text-xs font-medium ${SEVERITY_COLORS[alert.severity]}`}>
           {alert.severity}
@@ -174,7 +184,7 @@ function AlertRow({
           {alert.source_type}
         </span>
         <span className="min-w-0 flex-1 truncate text-sm font-medium">
-          {alert.title || "(no title)"}
+          <AlertTitle title={alert.title} />
         </span>
         {alert.tags && alert.tags.length > 0 && (
           <span className="flex shrink-0 gap-1">
@@ -193,7 +203,7 @@ function AlertRow({
         <span className="shrink-0 text-xs text-gray-400">
           {new Date(alert.created_at).toLocaleDateString()}
         </span>
-      </button>
+      </div>
 
       {expanded && (
         <div className="border-t px-4 py-3">
@@ -210,8 +220,8 @@ function AlertRow({
           )}
 
           <div className="mb-3">
-            <Link to="../sources" className="text-xs font-medium text-blue-600 hover:underline">Source: </Link>
-            <span className="text-xs text-gray-600">{sourceLabel(alert, sources)}</span>
+            <Link to={resolved.linkTo} className="text-xs font-medium text-blue-600 hover:underline">Source: </Link>
+            <span className="text-xs text-gray-600">{resolved.label}</span>
           </div>
 
           {alert.matched_keywords.length > 0 && (
@@ -244,6 +254,9 @@ function AlertRow({
           )}
 
           <div className="flex items-center gap-2">
+            <Link to={alert.id} className="rounded border border-blue-200 px-2 py-1 text-xs text-blue-600 hover:bg-blue-50">
+              View details
+            </Link>
             <span className="text-xs text-gray-500">
             Set status:
             <InfoIcon tooltip={statusHelp.tooltip}>{statusHelp.modal}</InfoIcon>

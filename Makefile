@@ -5,6 +5,7 @@
 .PHONY: compose-up compose-down compose-ps compose-logs compose-check-dns compose-health
 .PHONY: integration-test integration-test-keep
 .PHONY: generate-secrets
+.PHONY: email-run email-stop email-test email-deploy email-setup
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -101,6 +102,23 @@ integration-test-keep: ## Run integration tests, leave stack running for debuggi
 
 generate-secrets: ## Generate secrets and write to .env
 	./tools/generate-secrets.sh
+
+# ── Email Verification ──
+
+email-run: ## Start email verification server locally
+	$(MAKE) -C src/email-verification run
+
+email-stop: ## Stop email verification server
+	$(MAKE) -C src/email-verification stop
+
+email-test: ## Test email delivery and API
+	$(MAKE) -C src/email-verification test
+
+email-deploy: ## Deploy email verification to production VPS
+	$(MAKE) -C src/email-verification deploy
+
+email-setup: ## First-time VPS provisioning for email verification
+	$(MAKE) -C src/email-verification setup-server
 
 # ── Clean ──
 

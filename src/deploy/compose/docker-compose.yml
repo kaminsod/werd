@@ -188,6 +188,26 @@ services:
       retries: 3
       start_period: 30s
 
+  # ── Email (catch-all SMTP for account verification flows) ──
+
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+    # ports:
+    #   - "8025:8025"  # Uncomment for Mailpit Web UI access (debugging)
+    #   - "1025:1025"  # Uncomment for direct SMTP access (debugging)
+    networks:
+      - werd-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:8025/api/v1/info"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
   # ── Browser Automation (enables browser-based platform interactions) ──
 
   browser-service:
@@ -199,7 +219,17 @@ services:
       INTERNAL_API_KEY: ${WERD_INTERNAL_API_KEY}
       BROWSER_HEADLESS: "true"
       BROWSER_TIMEOUT_SECS: "30"
+      BROWSER_ACCOUNT_TIMEOUT_SECS: "60"
       BROWSER_PROXY: ${BROWSER_PROXY:-}
+      CAPTCHA_SOLVERS: ${CAPTCHA_SOLVERS:-recognizer}
+      CAPTCHA_API_URL: ${CAPTCHA_API_URL:-}
+      CAPTCHA_API_KEY: ${CAPTCHA_API_KEY:-}
+      EMAIL_VERIFIER: ${EMAIL_VERIFIER:-mailpit}
+      MAILPIT_URL: ${MAILPIT_URL:-http://mailpit:8025}  # Override for remote Mailpit server
+      EMAIL_DOMAIN: ${EMAIL_DOMAIN:-verify.example.com}
+    depends_on:
+      mailpit:
+        condition: service_healthy
     networks:
       - werd-net
     healthcheck:

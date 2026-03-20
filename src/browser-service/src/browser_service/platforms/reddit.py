@@ -260,12 +260,22 @@ class RedditPlatform(BasePlatform):
             )
 
             # --- Step 4: Solve CAPTCHA ---
+            # Reddit uses reCAPTCHA Enterprise (invisible, score-based).
+            # Detect the type and solve accordingly.
             if captcha:
                 try:
+                    is_enterprise = await page.locator(
+                        'iframe[src*="recaptcha/enterprise"], '
+                        'script[src*="recaptcha/enterprise"]'
+                    ).count() > 0
                     has_recaptcha = await page.locator(
                         'iframe[src*="recaptcha"], .g-recaptcha'
                     ).count() > 0
-                    if has_recaptcha:
+
+                    if is_enterprise:
+                        log.info("Detected reCAPTCHA Enterprise, solving...")
+                        await captcha.solve(page, "recaptcha_enterprise")
+                    elif has_recaptcha:
                         await captcha.solve(page, "recaptcha_v2")
                 except Exception as e:
                     log.warning("Captcha solve attempt: %s", e)

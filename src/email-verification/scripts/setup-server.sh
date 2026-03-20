@@ -55,6 +55,24 @@ echo "── Copying files to ${HOST}:${DIR} ──"
 scp "${SCRIPT_DIR}/docker-compose.yml" "${USER}@${HOST}:${DIR}/docker-compose.yml"
 [ -f "${SCRIPT_DIR}/.env" ] && scp "${SCRIPT_DIR}/.env" "${USER}@${HOST}:${DIR}/.env"
 
+echo "── Generating TLS certificate for STARTTLS ──"
+ssh "${USER}@${HOST}" bash -s -- "${DIR}" <<'TLS'
+set -euo pipefail
+DIR="$1"
+
+# Create TLS volume if needed
+podman volume create email-verification_mailpit-tls 2>/dev/null || true
+TLS_DIR=$(podman volume inspect email-verification_mailpit-tls | python3 -c "import sys,json; print(json.load(sys.stdin)[0]['Mountpoint'])")
+
+if [ ! -f "$TLS_DIR/cert.pem" ]; then
+  openssl req -x509 -newkey rsa:2048 -keyout "$TLS_DIR/key.pem" -out "$TLS_DIR/cert.pem" \
+    -days 3650 -nodes -subj "/CN=mail.datazo.net" 2>/dev/null
+  echo "  Generated self-signed cert for STARTTLS"
+else
+  echo "  TLS cert already exists, skipping"
+fi
+TLS
+
 echo "── Starting Mailpit ──"
 ssh "${USER}@${HOST}" "cd ${DIR} && podman-compose up -d"
 

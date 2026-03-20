@@ -1,8 +1,12 @@
 """Hacker News browser automation via news.ycombinator.com."""
 
+from __future__ import annotations
+
 from playwright.async_api import Page
 
 from .base import BasePlatform
+from ..captcha import CaptchaService
+from ..email import EmailVerifier
 from ..models import CreateAccountResponse, PublishResponse, ReadResponse, ReadItem, ValidateResponse
 
 
@@ -118,13 +122,21 @@ class HNPlatform(BasePlatform):
             return ReadResponse(success=False, error=str(e))
 
     async def create_account(
-        self, page: Page, email: str, username: str, password: str
+        self,
+        page: Page,
+        email: str,
+        username: str,
+        password: str,
+        captcha: CaptchaService | None = None,
+        email_verifier: EmailVerifier | None = None,
     ) -> CreateAccountResponse:
         """Create a new HN account.
 
         HN's login page has two forms:
         - Top: login (first set of acct/pw inputs + first submit)
         - Bottom: create account (second set of acct/pw inputs + second submit)
+
+        HN has no captcha and no email verification.
         """
         try:
             await page.goto(f"{self.BASE_URL}/login")

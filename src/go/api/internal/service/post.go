@@ -15,10 +15,11 @@ import (
 )
 
 var (
-	ErrPostNotFound  = errors.New("post not found")
-	ErrPostNotDraft  = errors.New("only draft posts can be modified")
-	ErrNoPlatforms   = errors.New("no platforms specified")
-	ErrPublishFailed = errors.New("publish failed on one or more platforms")
+	ErrPostNotFound       = errors.New("post not found")
+	ErrPostNotDraft       = errors.New("only draft posts can be modified")
+	ErrNoPlatforms        = errors.New("no platforms specified")
+	ErrPublishFailed      = errors.New("publish failed on one or more platforms")
+	ErrReplyMultiPlatform = errors.New("replies must target exactly one platform")
 )
 
 type PostInfo struct {
@@ -29,6 +30,7 @@ type PostInfo struct {
 	URL         string
 	PostType    string
 	Platforms   []string
+	ReplyToURL  string
 	ScheduledAt *time.Time
 	PublishedAt *time.Time
 	Status      string
@@ -61,7 +63,7 @@ func NewPost(q *storage.Queries, platformSvc *Platform, registry *integration.Re
 }
 
 // Create creates a new draft post.
-func (s *Post) Create(ctx context.Context, projectID, title, content, postURL, postType string, platforms []string) (*PostInfo, error) {
+func (s *Post) Create(ctx context.Context, projectID, title, content, postURL, postType string, platforms []string, replyToURL string) (*PostInfo, error) {
 	pid, err := uuid.Parse(projectID)
 	if err != nil {
 		return nil, ErrProjectNotFound
@@ -72,6 +74,9 @@ func (s *Post) Create(ctx context.Context, projectID, title, content, postURL, p
 	}
 	if postType == "" {
 		postType = "text"
+	}
+	if replyToURL != "" && len(platforms) != 1 {
+		return nil, ErrReplyMultiPlatform
 	}
 
 	// Validate all platforms have at least one registered adapter (api or browser).
@@ -84,13 +89,14 @@ func (s *Post) Create(ctx context.Context, projectID, title, content, postURL, p
 	}
 
 	post, err := s.q.CreatePublishedPost(ctx, storage.CreatePublishedPostParams{
-		ProjectID: pid,
-		Title:     title,
-		Content:   content,
-		Url:       postURL,
-		PostType:  storage.PostType(postType),
-		Platforms: platforms,
-		Status:    storage.PostStatusDraft,
+		ProjectID:  pid,
+		Title:      title,
+		Content:    content,
+		Url:        postURL,
+		PostType:   storage.PostType(postType),
+		Platforms:  platforms,
+		Status:     storage.PostStatusDraft,
+		ReplyToUrl: replyToURL,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("creating post: %w", err)
@@ -173,7 +179,7 @@ func (s *Post) Get(ctx context.Context, projectID, postID string) (*PostInfo, er
 	return postFromGet(post), nil
 }
 
-func (s *Post) Update(ctx context.Context, projectID, postID, title, content, postURL, postType string, platforms []string) (*PostInfo, error) {
+func (s *Post) Update(ctx context.Context, projectID, postID, title, content, postURL, postType string, platforms []string, replyToURL string) (*PostInfo, error) {
 	pid, err := uuid.Parse(projectID)
 	if err != nil {
 		return nil, ErrPostNotFound
@@ -184,6 +190,9 @@ func (s *Post) Update(ctx context.Context, projectID, postID, title, content, po
 	}
 	if postType == "" {
 		postType = "text"
+	}
+	if replyToURL != "" && len(platforms) != 1 {
+		return nil, ErrReplyMultiPlatform
 	}
 
 	for _, p := range platforms {
@@ -197,6 +206,7 @@ func (s *Post) Update(ctx context.Context, projectID, postID, title, content, po
 	post, err := s.q.UpdatePublishedPost(ctx, storage.UpdatePublishedPostParams{
 		ID: poid, ProjectID: pid, Title: title, Content: content,
 		Url: postURL, PostType: storage.PostType(postType), Platforms: platforms,
+		ReplyToUrl: replyToURL,
 	})
 	if err != nil {
 		// If the WHERE clause didn't match (not draft or not found), pgx returns ErrNoRows.
@@ -330,10 +340,11 @@ func (s *Post) Publish(ctx context.Context, projectID, postID string) ([]Platfor
 		}
 
 		pubContent := integration.PublishContent{
-			Title:    post.Title,
-			Body:     post.Content,
-			URL:      post.Url,
-			PostType: string(post.PostType),
+			Title:      post.Title,
+			Body:       post.Content,
+			URL:        post.Url,
+			PostType:   string(post.PostType),
+			ReplyToURL: post.ReplyToUrl,
 		}
 		// Backward compat: if no structured title, use content as body.
 		if pubContent.Title == "" && pubContent.Body == "" {
@@ -390,18 +401,19 @@ func (s *Post) Publish(ctx context.Context, projectID, postID string) ([]Platfor
 	return results, nil
 }
 
-func makePostInfo(id, projectID uuid.UUID, title, content, url string, postType storage.PostType, platforms []string, scheduledAt, publishedAt pgtype.Timestamptz, status storage.PostStatus, createdAt, updatedAt pgtype.Timestamptz) *PostInfo {
+func makePostInfo(id, projectID uuid.UUID, title, content, url string, postType storage.PostType, platforms []string, replyToURL string, scheduledAt, publishedAt pgtype.Timestamptz, status storage.PostStatus, createdAt, updatedAt pgtype.Timestamptz) *PostInfo {
 	info := &PostInfo{
-		ID:        id.String(),
-		ProjectID: projectID.String(),
-		Title:     title,
-		Content:   content,
-		URL:       url,
-		PostType:  string(postType),
-		Platforms: platforms,
-		Status:    string(status),
-		CreatedAt: createdAt.Time,
-		UpdatedAt: updatedAt.Time,
+		ID:         id.String(),
+		ProjectID:  projectID.String(),
+		Title:      title,
+		Content:    content,
+		URL:        url,
+		PostType:   string(postType),
+		Platforms:  platforms,
+		ReplyToURL: replyToURL,
+		Status:     string(status),
+		CreatedAt:  createdAt.Time,
+		UpdatedAt:  updatedAt.Time,
 	}
 	if scheduledAt.Valid {
 		t := scheduledAt.Time
@@ -415,29 +427,29 @@ func makePostInfo(id, projectID uuid.UUID, title, content, url string, postType 
 }
 
 func postFromCreate(p storage.CreatePublishedPostRow) *PostInfo {
-	return makePostInfo(p.ID, p.ProjectID, p.Title, p.Content, p.Url, p.PostType, p.Platforms, p.ScheduledAt, p.PublishedAt, p.Status, p.CreatedAt, p.UpdatedAt)
+	return makePostInfo(p.ID, p.ProjectID, p.Title, p.Content, p.Url, p.PostType, p.Platforms, p.ReplyToUrl, p.ScheduledAt, p.PublishedAt, p.Status, p.CreatedAt, p.UpdatedAt)
 }
 
 func postFromGet(p storage.GetPublishedPostByIDRow) *PostInfo {
-	return makePostInfo(p.ID, p.ProjectID, p.Title, p.Content, p.Url, p.PostType, p.Platforms, p.ScheduledAt, p.PublishedAt, p.Status, p.CreatedAt, p.UpdatedAt)
+	return makePostInfo(p.ID, p.ProjectID, p.Title, p.Content, p.Url, p.PostType, p.Platforms, p.ReplyToUrl, p.ScheduledAt, p.PublishedAt, p.Status, p.CreatedAt, p.UpdatedAt)
 }
 
 func postFromList(p storage.ListPublishedPostsRow) *PostInfo {
-	return makePostInfo(p.ID, p.ProjectID, p.Title, p.Content, p.Url, p.PostType, p.Platforms, p.ScheduledAt, p.PublishedAt, p.Status, p.CreatedAt, p.UpdatedAt)
+	return makePostInfo(p.ID, p.ProjectID, p.Title, p.Content, p.Url, p.PostType, p.Platforms, p.ReplyToUrl, p.ScheduledAt, p.PublishedAt, p.Status, p.CreatedAt, p.UpdatedAt)
 }
 
 func postFromListStatus(p storage.ListPublishedPostsByStatusRow) *PostInfo {
-	return makePostInfo(p.ID, p.ProjectID, p.Title, p.Content, p.Url, p.PostType, p.Platforms, p.ScheduledAt, p.PublishedAt, p.Status, p.CreatedAt, p.UpdatedAt)
+	return makePostInfo(p.ID, p.ProjectID, p.Title, p.Content, p.Url, p.PostType, p.Platforms, p.ReplyToUrl, p.ScheduledAt, p.PublishedAt, p.Status, p.CreatedAt, p.UpdatedAt)
 }
 
 func postFromUpdate(p storage.UpdatePublishedPostRow) *PostInfo {
-	return makePostInfo(p.ID, p.ProjectID, p.Title, p.Content, p.Url, p.PostType, p.Platforms, p.ScheduledAt, p.PublishedAt, p.Status, p.CreatedAt, p.UpdatedAt)
+	return makePostInfo(p.ID, p.ProjectID, p.Title, p.Content, p.Url, p.PostType, p.Platforms, p.ReplyToUrl, p.ScheduledAt, p.PublishedAt, p.Status, p.CreatedAt, p.UpdatedAt)
 }
 
 func postFromStatus(p storage.UpdatePublishedPostStatusRow) *PostInfo {
-	return makePostInfo(p.ID, p.ProjectID, p.Title, p.Content, p.Url, p.PostType, p.Platforms, p.ScheduledAt, p.PublishedAt, p.Status, p.CreatedAt, p.UpdatedAt)
+	return makePostInfo(p.ID, p.ProjectID, p.Title, p.Content, p.Url, p.PostType, p.Platforms, p.ReplyToUrl, p.ScheduledAt, p.PublishedAt, p.Status, p.CreatedAt, p.UpdatedAt)
 }
 
 func postFromPublished(p storage.SetPublishedPostPublishedRow) *PostInfo {
-	return makePostInfo(p.ID, p.ProjectID, p.Title, p.Content, p.Url, p.PostType, p.Platforms, p.ScheduledAt, p.PublishedAt, p.Status, p.CreatedAt, p.UpdatedAt)
+	return makePostInfo(p.ID, p.ProjectID, p.Title, p.Content, p.Url, p.PostType, p.Platforms, p.ReplyToUrl, p.ScheduledAt, p.PublishedAt, p.Status, p.CreatedAt, p.UpdatedAt)
 }

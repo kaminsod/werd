@@ -124,11 +124,16 @@ func (b *BrowserAdapter) Publish(ctx context.Context, content PublishContent, cr
 		contentStr = content.Title + "\n" + content.URL
 	}
 
+	opts := map[string]any{"headless": true, "timeout_secs": 45, "screenshot_on_error": true}
+	if content.ReplyToURL != "" {
+		opts["reply_to_url"] = content.ReplyToURL
+	}
+
 	req := browserPublishRequest{
 		Platform:    b.platform,
 		Credentials: creds,
 		Content:     contentStr,
-		Options:     map[string]any{"headless": true, "timeout_secs": 45, "screenshot_on_error": true},
+		Options:     opts,
 	}
 
 	body, _ := json.Marshal(req)

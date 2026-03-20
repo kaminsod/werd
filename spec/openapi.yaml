@@ -817,6 +817,9 @@ paths:
                   type: array
                   items:
                     type: string
+                reply_to_url:
+                  type: string
+                  description: URL of existing post/thread to reply to (single platform only)
       responses:
         "201":
           description: Post created
@@ -877,6 +880,9 @@ paths:
                   type: array
                   items:
                     type: string
+                reply_to_url:
+                  type: string
+                  description: URL of existing post/thread to reply to (single platform only)
       responses:
         "200":
           description: Post updated
@@ -1492,6 +1498,9 @@ components:
           type: array
           items:
             type: string
+        reply_to_url:
+          type: string
+          description: URL of existing post/thread this is a reply to
         scheduled_at:
           type: string
           format: date-time

@@ -1,32 +1,79 @@
-"""Mock captcha and email verification handlers.
+"""Captcha solving framework with pluggable backends.
 
-These are no-op implementations that return immediately. In production,
-they would integrate with captcha-solving services or email inbox polling.
-Platforms may reject mock tokens — the create_account response will include
-the specific error in that case.
+Solvers are tried in priority order (configured via CAPTCHA_SOLVERS env var).
+The first solver that supports the captcha type and succeeds wins.
 """
+
+from __future__ import annotations
+
+import logging
+from abc import ABC, abstractmethod
 
 from playwright.async_api import Page
 
-
-async def solve_captcha(page: Page, platform: str) -> str:
-    """No-op captcha solver. Returns a mock token.
-
-    In production, this would:
-    - Detect the captcha type (reCAPTCHA, hCaptcha, Turnstile, etc.)
-    - Call a solving service API or use platform-provided test keys
-    - Return the verification token
-    """
-    # For platforms with test/sandbox modes, inject the test key here.
-    return "mock-captcha-token"
+logger = logging.getLogger(__name__)
 
 
-async def verify_email(email: str, platform: str) -> str:
-    """No-op email verification. Returns a mock verification URL.
+class CaptchaSolveError(Exception):
+    """Raised when all solvers fail to solve a captcha."""
 
-    In production, this would:
-    - Poll an email inbox (IMAP, API, or temp mail service)
-    - Find the verification email from the platform
-    - Extract and return the verification link
-    """
-    return f"https://{platform}.mock/verify?token=mock-verification-token"
+
+class CaptchaSolver(ABC):
+    """Backend-agnostic captcha solver interface."""
+
+    @abstractmethod
+    async def solve(
+        self, page: Page, captcha_type: str, site_key: str | None = None
+    ) -> str:
+        """Solve captcha on the given page. Returns token or raises."""
+        ...
+
+    @abstractmethod
+    def supports(self, captcha_type: str) -> bool:
+        """Whether this solver can handle the given captcha type."""
+        ...
+
+
+class NoopSolver(CaptchaSolver):
+    """Returns a mock token. For dev/test only."""
+
+    async def solve(
+        self, page: Page, captcha_type: str, site_key: str | None = None
+    ) -> str:
+        logger.warning("NoopSolver: returning mock token for %s", captcha_type)
+        return "mock-captcha-token"
+
+    def supports(self, captcha_type: str) -> bool:
+        return True
+
+
+class CaptchaService:
+    """Router that tries solvers in priority order."""
+
+    def __init__(self, solvers: list[CaptchaSolver]) -> None:
+        self.solvers = solvers
+
+    async def solve(
+        self, page: Page, captcha_type: str, site_key: str | None = None
+    ) -> str:
+        """Try each solver in order. Returns token from first success."""
+        errors: list[str] = []
+        for solver in self.solvers:
+            if not solver.supports(captcha_type):
+                continue
+            try:
+                token = await solver.solve(page, captcha_type, site_key)
+                logger.info(
+                    "Captcha solved by %s for type %s",
+                    type(solver).__name__,
+                    captcha_type,
+                )
+                return token
+            except Exception as e:
+                logger.warning(
+                    "%s failed for %s: %s", type(solver).__name__, captcha_type, e
+                )
+                errors.append(f"{type(solver).__name__}: {e}")
+        raise CaptchaSolveError(
+            f"All solvers failed for {captcha_type}: {'; '.join(errors)}"
+        )

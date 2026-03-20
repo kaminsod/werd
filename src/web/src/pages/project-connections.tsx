@@ -1,8 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { useParams, Link } from "react-router";
 import { useConnections, useCreateConnection, useUpdateConnection, useDeleteConnection, useCreateAccount } from "@/hooks/use-connections";
-import InfoIcon from "@/components/info-icon";
-import { platformCredentials as credsHelp } from "@/lib/help-content";
+import CredentialEditor from "@/components/credential-editor";
 import type { Connection, ConnectionMethod } from "@/types/api";
 
 const PLATFORMS = ["bluesky", "reddit", "hn"];
@@ -11,21 +10,6 @@ const PLATFORM_LABELS: Record<string, string> = {
   bluesky: "Bluesky",
   reddit: "Reddit",
   hn: "Hacker News",
-};
-
-const CREDENTIAL_HINTS: Record<string, Record<string, string>> = {
-  bluesky: {
-    api: '{"identifier": "user.bsky.social", "app_password": "xxxx-xxxx-xxxx-xxxx"}',
-    browser: '{"username": "user@example.com", "password": "..."}',
-  },
-  reddit: {
-    api: '{"client_id": "...", "client_secret": "...", "username": "...", "password": "...", "user_agent": "werd/1.0 by u/you", "subreddit": "test"}',
-    browser: '{"username": "...", "password": "...", "subreddit": "test"}',
-  },
-  hn: {
-    api: '{}',
-    browser: '{"username": "...", "password": "..."}',
-  },
 };
 
 const METHOD_GUIDANCE: Record<string, Record<string, string>> = {
@@ -90,7 +74,7 @@ export default function ConnectionsPage() {
     e.preventDefault();
     let credentials: unknown;
     try {
-      credentials = JSON.parse(formCreds);
+      credentials = formCreds.trim() === "" ? {} : JSON.parse(formCreds);
     } catch {
       alert("Invalid JSON in credentials field");
       return;
@@ -257,17 +241,14 @@ export default function ConnectionsPage() {
 
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-600">
-              Credentials (JSON)
-              <InfoIcon tooltip={credsHelp.tooltip}>{credsHelp.modal}</InfoIcon>
+              Credentials
               {editId && <span className="font-normal text-gray-400"> — re-enter to update</span>}
             </label>
-            <textarea
+            <CredentialEditor
+              platform={formPlatform}
+              method={formMethod}
               value={formCreds}
-              onChange={(e) => setFormCreds(e.target.value)}
-              required={formMethod === "browser" || API_PUBLISHABLE.has(formPlatform)}
-              rows={3}
-              className="w-full rounded border px-3 py-2 font-mono text-sm"
-              placeholder={CREDENTIAL_HINTS[formPlatform]?.[formMethod] ?? "{}"}
+              onChange={setFormCreds}
             />
           </div>
 

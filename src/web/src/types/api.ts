@@ -142,6 +142,7 @@ export interface Post {
   url: string;
   post_type: PostType;
   platforms: string[];
+  reply_to_url?: string;
   scheduled_at: string | null;
   published_at: string | null;
   status: PostStatus;

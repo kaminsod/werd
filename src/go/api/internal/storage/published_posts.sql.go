@@ -40,19 +40,20 @@ func (q *Queries) CountPublishedPostsByStatus(ctx context.Context, arg CountPubl
 }
 
 const createPublishedPost = `-- name: CreatePublishedPost :one
-INSERT INTO published_posts (project_id, title, content, url, post_type, platforms, status)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, project_id, title, content, url, post_type, platforms, scheduled_at, published_at, status, created_at, updated_at
+INSERT INTO published_posts (project_id, title, content, url, post_type, platforms, status, reply_to_url)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+RETURNING id, project_id, title, content, url, post_type, platforms, reply_to_url, scheduled_at, published_at, status, created_at, updated_at
 `
 
 type CreatePublishedPostParams struct {
-	ProjectID uuid.UUID  `json:"project_id"`
-	Title     string     `json:"title"`
-	Content   string     `json:"content"`
-	Url       string     `json:"url"`
-	PostType  PostType   `json:"post_type"`
-	Platforms []string   `json:"platforms"`
-	Status    PostStatus `json:"status"`
+	ProjectID  uuid.UUID  `json:"project_id"`
+	Title      string     `json:"title"`
+	Content    string     `json:"content"`
+	Url        string     `json:"url"`
+	PostType   PostType   `json:"post_type"`
+	Platforms  []string   `json:"platforms"`
+	Status     PostStatus `json:"status"`
+	ReplyToUrl string     `json:"reply_to_url"`
 }
 
 type CreatePublishedPostRow struct {
@@ -63,6 +64,7 @@ type CreatePublishedPostRow struct {
 	Url         string             `json:"url"`
 	PostType    PostType           `json:"post_type"`
 	Platforms   []string           `json:"platforms"`
+	ReplyToUrl  string             `json:"reply_to_url"`
 	ScheduledAt pgtype.Timestamptz `json:"scheduled_at"`
 	PublishedAt pgtype.Timestamptz `json:"published_at"`
 	Status      PostStatus         `json:"status"`
@@ -79,6 +81,7 @@ func (q *Queries) CreatePublishedPost(ctx context.Context, arg CreatePublishedPo
 		arg.PostType,
 		arg.Platforms,
 		arg.Status,
+		arg.ReplyToUrl,
 	)
 	var i CreatePublishedPostRow
 	err := row.Scan(
@@ -89,6 +92,7 @@ func (q *Queries) CreatePublishedPost(ctx context.Context, arg CreatePublishedPo
 		&i.Url,
 		&i.PostType,
 		&i.Platforms,
+		&i.ReplyToUrl,
 		&i.ScheduledAt,
 		&i.PublishedAt,
 		&i.Status,
@@ -114,7 +118,7 @@ func (q *Queries) DeletePublishedPost(ctx context.Context, arg DeletePublishedPo
 }
 
 const getPublishedPostByID = `-- name: GetPublishedPostByID :one
-SELECT id, project_id, title, content, url, post_type, platforms, scheduled_at, published_at, status, created_at, updated_at
+SELECT id, project_id, title, content, url, post_type, platforms, reply_to_url, scheduled_at, published_at, status, created_at, updated_at
 FROM published_posts
 WHERE id = $1 AND project_id = $2
 `
@@ -132,6 +136,7 @@ type GetPublishedPostByIDRow struct {
 	Url         string             `json:"url"`
 	PostType    PostType           `json:"post_type"`
 	Platforms   []string           `json:"platforms"`
+	ReplyToUrl  string             `json:"reply_to_url"`
 	ScheduledAt pgtype.Timestamptz `json:"scheduled_at"`
 	PublishedAt pgtype.Timestamptz `json:"published_at"`
 	Status      PostStatus         `json:"status"`
@@ -150,6 +155,7 @@ func (q *Queries) GetPublishedPostByID(ctx context.Context, arg GetPublishedPost
 		&i.Url,
 		&i.PostType,
 		&i.Platforms,
+		&i.ReplyToUrl,
 		&i.ScheduledAt,
 		&i.PublishedAt,
 		&i.Status,
@@ -160,7 +166,7 @@ func (q *Queries) GetPublishedPostByID(ctx context.Context, arg GetPublishedPost
 }
 
 const listPublishedPosts = `-- name: ListPublishedPosts :many
-SELECT id, project_id, title, content, url, post_type, platforms, scheduled_at, published_at, status, created_at, updated_at
+SELECT id, project_id, title, content, url, post_type, platforms, reply_to_url, scheduled_at, published_at, status, created_at, updated_at
 FROM published_posts
 WHERE project_id = $1
 ORDER BY created_at DESC
@@ -181,6 +187,7 @@ type ListPublishedPostsRow struct {
 	Url         string             `json:"url"`
 	PostType    PostType           `json:"post_type"`
 	Platforms   []string           `json:"platforms"`
+	ReplyToUrl  string             `json:"reply_to_url"`
 	ScheduledAt pgtype.Timestamptz `json:"scheduled_at"`
 	PublishedAt pgtype.Timestamptz `json:"published_at"`
 	Status      PostStatus         `json:"status"`
@@ -205,6 +212,7 @@ func (q *Queries) ListPublishedPosts(ctx context.Context, arg ListPublishedPosts
 			&i.Url,
 			&i.PostType,
 			&i.Platforms,
+			&i.ReplyToUrl,
 			&i.ScheduledAt,
 			&i.PublishedAt,
 			&i.Status,
@@ -222,7 +230,7 @@ func (q *Queries) ListPublishedPosts(ctx context.Context, arg ListPublishedPosts
 }
 
 const listPublishedPostsByStatus = `-- name: ListPublishedPostsByStatus :many
-SELECT id, project_id, title, content, url, post_type, platforms, scheduled_at, published_at, status, created_at, updated_at
+SELECT id, project_id, title, content, url, post_type, platforms, reply_to_url, scheduled_at, published_at, status, created_at, updated_at
 FROM published_posts
 WHERE project_id = $1 AND status = $2
 ORDER BY created_at DESC
@@ -244,6 +252,7 @@ type ListPublishedPostsByStatusRow struct {
 	Url         string             `json:"url"`
 	PostType    PostType           `json:"post_type"`
 	Platforms   []string           `json:"platforms"`
+	ReplyToUrl  string             `json:"reply_to_url"`
 	ScheduledAt pgtype.Timestamptz `json:"scheduled_at"`
 	PublishedAt pgtype.Timestamptz `json:"published_at"`
 	Status      PostStatus         `json:"status"`
@@ -273,6 +282,7 @@ func (q *Queries) ListPublishedPostsByStatus(ctx context.Context, arg ListPublis
 			&i.Url,
 			&i.PostType,
 			&i.Platforms,
+			&i.ReplyToUrl,
 			&i.ScheduledAt,
 			&i.PublishedAt,
 			&i.Status,
@@ -293,7 +303,7 @@ const setPublishedPostPublished = `-- name: SetPublishedPostPublished :one
 UPDATE published_posts
 SET status = 'published', published_at = now()
 WHERE id = $1 AND project_id = $2
-RETURNING id, project_id, title, content, url, post_type, platforms, scheduled_at, published_at, status, created_at, updated_at
+RETURNING id, project_id, title, content, url, post_type, platforms, reply_to_url, scheduled_at, published_at, status, created_at, updated_at
 `
 
 type SetPublishedPostPublishedParams struct {
@@ -309,6 +319,7 @@ type SetPublishedPostPublishedRow struct {
 	Url         string             `json:"url"`
 	PostType    PostType           `json:"post_type"`
 	Platforms   []string           `json:"platforms"`
+	ReplyToUrl  string             `json:"reply_to_url"`
 	ScheduledAt pgtype.Timestamptz `json:"scheduled_at"`
 	PublishedAt pgtype.Timestamptz `json:"published_at"`
 	Status      PostStatus         `json:"status"`
@@ -327,6 +338,7 @@ func (q *Queries) SetPublishedPostPublished(ctx context.Context, arg SetPublishe
 		&i.Url,
 		&i.PostType,
 		&i.Platforms,
+		&i.ReplyToUrl,
 		&i.ScheduledAt,
 		&i.PublishedAt,
 		&i.Status,
@@ -338,19 +350,20 @@ func (q *Queries) SetPublishedPostPublished(ctx context.Context, arg SetPublishe
 
 const updatePublishedPost = `-- name: UpdatePublishedPost :one
 UPDATE published_posts
-SET title = $3, content = $4, url = $5, post_type = $6, platforms = $7
+SET title = $3, content = $4, url = $5, post_type = $6, platforms = $7, reply_to_url = $8
 WHERE id = $1 AND project_id = $2 AND status = 'draft'
-RETURNING id, project_id, title, content, url, post_type, platforms, scheduled_at, published_at, status, created_at, updated_at
+RETURNING id, project_id, title, content, url, post_type, platforms, reply_to_url, scheduled_at, published_at, status, created_at, updated_at
 `
 
 type UpdatePublishedPostParams struct {
-	ID        uuid.UUID `json:"id"`
-	ProjectID uuid.UUID `json:"project_id"`
-	Title     string    `json:"title"`
-	Content   string    `json:"content"`
-	Url       string    `json:"url"`
-	PostType  PostType  `json:"post_type"`
-	Platforms []string  `json:"platforms"`
+	ID         uuid.UUID `json:"id"`
+	ProjectID  uuid.UUID `json:"project_id"`
+	Title      string    `json:"title"`
+	Content    string    `json:"content"`
+	Url        string    `json:"url"`
+	PostType   PostType  `json:"post_type"`
+	Platforms  []string  `json:"platforms"`
+	ReplyToUrl string    `json:"reply_to_url"`
 }
 
 type UpdatePublishedPostRow struct {
@@ -361,6 +374,7 @@ type UpdatePublishedPostRow struct {
 	Url         string             `json:"url"`
 	PostType    PostType           `json:"post_type"`
 	Platforms   []string           `json:"platforms"`
+	ReplyToUrl  string             `json:"reply_to_url"`
 	ScheduledAt pgtype.Timestamptz `json:"scheduled_at"`
 	PublishedAt pgtype.Timestamptz `json:"published_at"`
 	Status      PostStatus         `json:"status"`
@@ -377,6 +391,7 @@ func (q *Queries) UpdatePublishedPost(ctx context.Context, arg UpdatePublishedPo
 		arg.Url,
 		arg.PostType,
 		arg.Platforms,
+		arg.ReplyToUrl,
 	)
 	var i UpdatePublishedPostRow
 	err := row.Scan(
@@ -387,6 +402,7 @@ func (q *Queries) UpdatePublishedPost(ctx context.Context, arg UpdatePublishedPo
 		&i.Url,
 		&i.PostType,
 		&i.Platforms,
+		&i.ReplyToUrl,
 		&i.ScheduledAt,
 		&i.PublishedAt,
 		&i.Status,
@@ -400,7 +416,7 @@ const updatePublishedPostStatus = `-- name: UpdatePublishedPostStatus :one
 UPDATE published_posts
 SET status = $3
 WHERE id = $1 AND project_id = $2
-RETURNING id, project_id, title, content, url, post_type, platforms, scheduled_at, published_at, status, created_at, updated_at
+RETURNING id, project_id, title, content, url, post_type, platforms, reply_to_url, scheduled_at, published_at, status, created_at, updated_at
 `
 
 type UpdatePublishedPostStatusParams struct {
@@ -417,6 +433,7 @@ type UpdatePublishedPostStatusRow struct {
 	Url         string             `json:"url"`
 	PostType    PostType           `json:"post_type"`
 	Platforms   []string           `json:"platforms"`
+	ReplyToUrl  string             `json:"reply_to_url"`
 	ScheduledAt pgtype.Timestamptz `json:"scheduled_at"`
 	PublishedAt pgtype.Timestamptz `json:"published_at"`
 	Status      PostStatus         `json:"status"`
@@ -435,6 +452,7 @@ func (q *Queries) UpdatePublishedPostStatus(ctx context.Context, arg UpdatePubli
 		&i.Url,
 		&i.PostType,
 		&i.Platforms,
+		&i.ReplyToUrl,
 		&i.ScheduledAt,
 		&i.PublishedAt,
 		&i.Status,

@@ -627,6 +627,7 @@ type PublishedPost struct {
 	Title       string             `json:"title"`
 	Url         string             `json:"url"`
 	PostType    PostType           `json:"post_type"`
+	ReplyToUrl  string             `json:"reply_to_url"`
 }
 
 type ServiceInstance struct {

@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -69,8 +70,8 @@ func (r *Reddit) ValidateCredentials(ctx context.Context, credentials json.RawMe
 	return err
 }
 
-// Publish creates a post on Reddit. Supports text posts (title + body)
-// and link posts (title + URL).
+// Publish creates a post on Reddit. Supports text posts (title + body),
+// link posts (title + URL), and replies to existing threads/comments.
 func (r *Reddit) Publish(ctx context.Context, content PublishContent, credentials json.RawMessage) (*PublishResult, error) {
 	creds, err := r.parseCreds(credentials)
 	if err != nil {
@@ -80,6 +81,22 @@ func (r *Reddit) Publish(ctx context.Context, content PublishContent, credential
 	token, err := r.getAccessToken(ctx, creds)
 	if err != nil {
 		return nil, fmt.Errorf("reddit: getting access token: %w", err)
+	}
+
+	// Reply mode: comment on an existing post or comment.
+	if content.ReplyToURL != "" {
+		thingID, err := parseRedditURL(content.ReplyToURL)
+		if err != nil {
+			return nil, fmt.Errorf("reddit: %w", err)
+		}
+		name, commentURL, err := r.submitComment(ctx, token, creds, thingID, content.Body)
+		if err != nil {
+			return nil, fmt.Errorf("reddit: submitting comment: %w", err)
+		}
+		return &PublishResult{
+			PlatformPostID: name,
+			URL:            commentURL,
+		}, nil
 	}
 
 	// Use structured fields if title is set, otherwise fall back to splitting body.
@@ -277,6 +294,83 @@ func (r *Reddit) submitLinkPost(ctx context.Context, token string, creds *Reddit
 	}
 
 	return result.JSON.Data.Name, result.JSON.Data.URL, nil
+}
+
+// redditURLPattern matches reddit.com URLs with post ID and optional comment ID.
+var redditURLPattern = regexp.MustCompile(`(?:https?://)?(?:(?:www|old|new)\.)?reddit\.com/r/\w+/comments/(\w+)(?:/[^/]*/(\w+))?`)
+
+// parseRedditURL extracts a Reddit fullname (t3_ or t1_) from a reddit.com URL.
+func parseRedditURL(rawURL string) (string, error) {
+	m := redditURLPattern.FindStringSubmatch(rawURL)
+	if m == nil {
+		return "", fmt.Errorf("invalid Reddit URL: %s", rawURL)
+	}
+	if m[2] != "" {
+		return "t1_" + m[2], nil // comment reply
+	}
+	return "t3_" + m[1], nil // post reply
+}
+
+// submitComment posts a comment on an existing Reddit post or comment.
+func (r *Reddit) submitComment(ctx context.Context, token string, creds *RedditCredentials, thingID, text string) (string, string, error) {
+	form := url.Values{
+		"api_type": {"json"},
+		"thing_id": {thingID},
+		"text":     {text},
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		r.apiHost+"/api/comment", strings.NewReader(form.Encode()))
+	if err != nil {
+		return "", "", err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("User-Agent", creds.UserAgent)
+
+	resp, err := r.httpCli.Do(req)
+	if err != nil {
+		return "", "", fmt.Errorf("comment request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", "", fmt.Errorf("reading comment response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return "", "", fmt.Errorf("comment failed (status %d): %s", resp.StatusCode, string(respBody))
+	}
+
+	var result struct {
+		JSON struct {
+			Errors [][]string `json:"errors"`
+			Data   struct {
+				Things []struct {
+					Data struct {
+						Name      string `json:"name"`
+						Permalink string `json:"permalink"`
+					} `json:"data"`
+				} `json:"things"`
+			} `json:"data"`
+		} `json:"json"`
+	}
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return "", "", fmt.Errorf("parsing comment response: %w", err)
+	}
+
+	if len(result.JSON.Errors) > 0 {
+		return "", "", fmt.Errorf("reddit API errors: %v", result.JSON.Errors)
+	}
+
+	if len(result.JSON.Data.Things) == 0 {
+		return "", "", fmt.Errorf("no comment data in response")
+	}
+
+	thing := result.JSON.Data.Things[0].Data
+	commentURL := "https://www.reddit.com" + thing.Permalink
+	return thing.Name, commentURL, nil
 }
 
 // splitTitleBody splits content into title (first line) and body (remaining lines).

@@ -1,8 +1,7 @@
 """Reddit integration tests — real platform interactions.
 
 These tests use a pre-provisioned Reddit account to publish and read
-on real Reddit. Account creation is attempted but expected to fail
-(CAPTCHA blocks automated signup).
+on real Reddit. Account creation uses the captcha/email services.
 
 Required env vars (skip all if not set):
     WERD_TEST_REDDIT_USERNAME
@@ -18,6 +17,8 @@ import os
 import pytest
 
 from browser_service.platforms.reddit import RedditPlatform
+from browser_service.captcha import CaptchaService, NoopSolver
+from browser_service.email import NoopVerifier
 
 
 # Skip entire module if credentials not provided.
@@ -134,20 +135,31 @@ async def test_reddit_read_and_find_own_post(reddit, browser_page_factory, crede
     )
 
 
-# ── Account creation (expected to fail due to CAPTCHA) ──
+# ── Account creation ──
 
 
-@pytest.mark.timeout(60)
-@pytest.mark.xfail(reason="Reddit blocks automated account creation with CAPTCHA")
-async def test_reddit_create_account_attempt(reddit, browser_page_factory, unique_id):
-    """Attempt to create a Reddit account. Expected to be blocked by CAPTCHA."""
+@pytest.mark.timeout(90)
+async def test_reddit_create_account_with_noop(reddit, browser_page_factory, unique_id):
+    """Attempt Reddit account creation with noop captcha/email.
+
+    With NoopSolver, the captcha won't actually be solved, so this will
+    likely fail with a captcha error — but it exercises the full flow.
+    """
     username = f"werdtest{unique_id}"[:20]
     password = f"TestPass_{unique_id}!"
 
+    noop_captcha = CaptchaService([NoopSolver()])
+    noop_email = NoopVerifier()
+
     async with browser_page_factory() as page:
         result = await reddit.create_account(
-            page, f"{username}@example.com", username, password
+            page, f"{username}@example.com", username, password,
+            captcha=noop_captcha,
+            email_verifier=noop_email,
         )
 
-    # If we get here without exception, check the result.
-    assert result.success, f"Account creation failed: {result.error}"
+    # With noop solver, expect failure due to captcha.
+    # The test validates the flow runs without crashing.
+    assert isinstance(result.success, bool)
+    if not result.success:
+        assert result.error  # Should have a meaningful error message

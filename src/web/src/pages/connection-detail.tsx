@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { useParams, Link, useNavigate } from "react-router";
 import { useConnection, useUpdateConnection, useDeleteConnection } from "@/hooks/use-connections";
+import CredentialEditor from "@/components/credential-editor";
 import type { ConnectionMethod } from "@/types/api";
 
 const PLATFORM_LABELS: Record<string, string> = {
@@ -54,7 +55,7 @@ export default function ConnectionDetailPage() {
     e.preventDefault();
     let credentials: unknown;
     try {
-      credentials = JSON.parse(formCreds);
+      credentials = formCreds.trim() === "" ? {} : JSON.parse(formCreds);
     } catch {
       alert("Invalid JSON in credentials field");
       return;
@@ -128,8 +129,13 @@ export default function ConnectionDetailPage() {
           )}
 
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-600">Credentials (JSON) — re-enter to update</label>
-            <textarea value={formCreds} onChange={(e) => setFormCreds(e.target.value)} required rows={3} className="w-full rounded border px-3 py-2 font-mono text-sm" placeholder="{}" />
+            <label className="mb-1 block text-xs font-medium text-gray-600">Credentials — re-enter to update</label>
+            <CredentialEditor
+              platform={formPlatform}
+              method={formMethod}
+              value={formCreds}
+              onChange={setFormCreds}
+            />
           </div>
 
           <div className="flex gap-2">

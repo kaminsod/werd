@@ -8,10 +8,11 @@ import (
 
 // PublishContent holds structured post data for platform adapters.
 type PublishContent struct {
-	Title    string `json:"title"`     // Post title (Reddit, HN)
-	Body     string `json:"body"`      // Post body/text content
-	URL      string `json:"url"`       // Link URL (for link posts)
-	PostType string `json:"post_type"` // "text" or "link"
+	Title      string `json:"title"`        // Post title (Reddit, HN)
+	Body       string `json:"body"`         // Post body/text content
+	URL        string `json:"url"`          // Link URL (for link posts)
+	PostType   string `json:"post_type"`    // "text" or "link"
+	ReplyToURL string `json:"reply_to_url"` // If set, reply to this URL instead of creating a new post
 }
 
 // PlatformAdapter defines the contract for social platform integrations.

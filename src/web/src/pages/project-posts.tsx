@@ -14,6 +14,14 @@ const STATUS_COLORS: Record<PostStatus, string> = {
   failed: "bg-red-100 text-red-700",
 };
 
+const PLATFORM_LABELS: Record<string, string> = {
+  bluesky: "Bluesky",
+  reddit: "Reddit",
+  hn: "Hacker News",
+};
+
+const ALL_PLATFORMS = ["bluesky", "reddit", "hn"];
+
 const PAGE_SIZE = 20;
 
 export default function PostsPage() {
@@ -42,6 +50,8 @@ export default function PostsPage() {
   const [postType, setPostType] = useState<"text" | "link">("text");
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
   const [publishResults, setPublishResults] = useState<PlatformPublishResult[] | null>(null);
+  const [isReply, setIsReply] = useState(false);
+  const [replyToURL, setReplyToURL] = useState("");
 
   // Show platforms that can publish — API-publishable or browser-publishable connections.
   const API_PUB = new Set(["bluesky", "reddit"]);
@@ -70,6 +80,8 @@ export default function PostsPage() {
     setShowCompose(false);
     setEditId(null);
     setPublishResults(null);
+    setIsReply(false);
+    setReplyToURL("");
   }
 
   function startEdit(post: Post) {
@@ -81,6 +93,8 @@ export default function PostsPage() {
     setSelectedPlatforms(post.platforms);
     setShowCompose(true);
     setPublishResults(null);
+    setIsReply(!!post.reply_to_url);
+    setReplyToURL(post.reply_to_url || "");
   }
 
   function togglePlatform(platform: string) {
@@ -89,9 +103,27 @@ export default function PostsPage() {
     );
   }
 
+  function detectPlatformFromURL(url: string): string | null {
+    try {
+      const hostname = new URL(url).hostname;
+      if (/reddit\.com$/.test(hostname)) return "reddit";
+      if (/bsky\.app$/.test(hostname)) return "bluesky";
+      if (/news\.ycombinator\.com$/.test(hostname)) return "hn";
+    } catch { /* invalid URL */ }
+    return null;
+  }
+
+  function handleReplyURLChange(url: string) {
+    setReplyToURL(url);
+    const detected = detectPlatformFromURL(url);
+    if (detected) {
+      setSelectedPlatforms([detected]);
+    }
+  }
+
   function handleSave(e: FormEvent) {
     e.preventDefault();
-    const postData = { title, content, url: postURL, post_type: postType, platforms: selectedPlatforms };
+    const postData = { title, content, url: postURL, post_type: postType, platforms: selectedPlatforms, reply_to_url: isReply ? replyToURL : undefined };
     if (editId) {
       updatePost.mutate(
         { postId: editId, ...postData },
@@ -144,8 +176,38 @@ export default function PostsPage() {
             </p>
           )}
 
+          {/* Mode toggle: New Post vs Reply */}
+          <div className="flex items-center gap-4">
+            <label className="flex items-center gap-1.5">
+              <input type="radio" name="post_mode" checked={!isReply} onChange={() => { setIsReply(false); setReplyToURL(""); }} />
+              <span className="text-sm">New Post</span>
+            </label>
+            <label className="flex items-center gap-1.5">
+              <input type="radio" name="post_mode" checked={isReply} onChange={() => setIsReply(true)} />
+              <span className="text-sm">Reply to Thread</span>
+            </label>
+          </div>
+
+          {/* Reply URL */}
+          {isReply && (
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-600">Reply to URL</label>
+              <input
+                value={replyToURL}
+                onChange={(e) => handleReplyURLChange(e.target.value)}
+                type="url"
+                required
+                placeholder="https://reddit.com/r/... or https://bsky.app/..."
+                className="w-full rounded border px-3 py-2 text-sm"
+              />
+              {replyToURL && !detectPlatformFromURL(replyToURL) && (
+                <p className="mt-1 text-xs text-amber-600">Could not detect platform from URL</p>
+              )}
+            </div>
+          )}
+
           {/* Post type selector (for Reddit, HN) */}
-          {needsPostType && (
+          {!isReply && needsPostType && (
             <div className="flex items-center gap-4">
               <label className="text-xs font-medium text-gray-600">Post type:</label>
               <label className="flex items-center gap-1.5">
@@ -159,8 +221,8 @@ export default function PostsPage() {
             </div>
           )}
 
-          {/* Title field (for Reddit, HN) */}
-          {needsTitle && (
+          {/* Title field (for Reddit, HN) — hidden in reply mode */}
+          {!isReply && needsTitle && (
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-600">Title</label>
               <input
@@ -172,8 +234,8 @@ export default function PostsPage() {
             </div>
           )}
 
-          {/* URL field (for link posts) */}
-          {postType === "link" && (
+          {/* URL field (for link posts) — hidden in reply mode */}
+          {!isReply && postType === "link" && (
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-600">URL</label>
               <input
@@ -204,25 +266,27 @@ export default function PostsPage() {
 
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-600">Platforms</label>
-            {availablePlatforms.length === 0 ? (
-              <p className="text-xs text-gray-400">No connections configured. Add a platform connection first.</p>
-            ) : (
-              <div className="flex gap-3">
-                {availablePlatforms.map((p) => (
-                  <label key={p} className="flex items-center gap-1.5">
+            <div className="flex flex-wrap gap-3">
+              {ALL_PLATFORMS.map((p) => {
+                const available = availablePlatforms.includes(p);
+                const locked = isReply && replyToURL && detectPlatformFromURL(replyToURL) !== null;
+                return (
+                  <label key={p} className={`flex items-center gap-1.5 ${!available ? "opacity-50" : ""}`}>
                     <input
                       type="checkbox"
                       checked={selectedPlatforms.includes(p)}
                       onChange={() => togglePlatform(p)}
+                      disabled={!available || !!locked}
                     />
                     <span className="text-sm">
-                      {p}
+                      {PLATFORM_LABELS[p] ?? p}
                       {platformTargets[p] && <span className="ml-1 text-gray-400">({platformTargets[p]})</span>}
+                      {!available && <span className="ml-1 text-xs text-gray-400">(no connection)</span>}
                     </span>
                   </label>
-                ))}
-              </div>
-            )}
+                );
+              })}
+            </div>
           </div>
 
           <div className="flex gap-2">
@@ -300,10 +364,16 @@ export default function PostsPage() {
                 </span>
                 {post.platforms.map((p) => (
                   <span key={p} className="rounded bg-indigo-50 px-2 py-0.5 text-xs text-indigo-600">
-                    {p}
+                    {PLATFORM_LABELS[p] ?? p}
                     {platformTargets[p] && <span className="ml-1 text-indigo-400">{platformTargets[p]}</span>}
                   </span>
                 ))}
+                {post.post_type === "link" && (
+                  <span className="rounded bg-sky-50 px-2 py-0.5 text-xs text-sky-600">link</span>
+                )}
+                {post.reply_to_url && (
+                  <span className="rounded bg-amber-50 px-2 py-0.5 text-xs text-amber-700" title={post.reply_to_url}>reply</span>
+                )}
                 <span className="ml-auto text-xs text-gray-400">
                   {post.published_at
                     ? `Published ${new Date(post.published_at).toLocaleString()}`

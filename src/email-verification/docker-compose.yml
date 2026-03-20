@@ -13,8 +13,13 @@ services:
       MP_SMTP_AUTH_ALLOW_INSECURE: 1
       MP_DATABASE: /data/mailpit.db
       MP_UI_AUTH: ${MP_UI_AUTH:-}
+      # STARTTLS with self-signed cert. Required for receiving mail from
+      # major senders (Reddit, Bluesky, etc.) that require TLS.
+      MP_SMTP_TLS_CERT: /tls/cert.pem
+      MP_SMTP_TLS_KEY: /tls/key.pem
     volumes:
       - mailpit-data:/data
+      - mailpit-tls:/tls:ro
     healthcheck:
       test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:8025/api/v1/info"]
       interval: 15s
@@ -24,3 +29,4 @@ services:
 
 volumes:
   mailpit-data:
+  mailpit-tls:

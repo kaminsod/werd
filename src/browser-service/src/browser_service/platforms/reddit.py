@@ -1,10 +1,18 @@
-"""Reddit browser automation via old.reddit.com."""
+"""Reddit browser automation.
+
+Login and publish/read use old.reddit.com for simpler, more reliable automation.
+Account creation uses new reddit (reddit.com) since old.reddit.com no longer
+has a registration form.
+"""
+
+from __future__ import annotations
 
 from playwright.async_api import Page
 
-from .base import BasePlatform
+from .base import BasePlatform, ElementNotFoundError
+from ..captcha import CaptchaService
+from ..email import EmailVerifier
 from ..models import CreateAccountResponse, PublishResponse, ReadResponse, ReadItem, ValidateResponse
-from ..captcha import solve_captcha, verify_email
 
 
 class RedditPlatform(BasePlatform):
@@ -101,55 +109,203 @@ class RedditPlatform(BasePlatform):
             return ReadResponse(success=False, error=str(e))
 
     async def create_account(
-        self, page: Page, email: str, username: str, password: str
+        self,
+        page: Page,
+        email: str,
+        username: str,
+        password: str,
+        captcha: CaptchaService | None = None,
+        email_verifier: EmailVerifier | None = None,
     ) -> CreateAccountResponse:
-        """Create a new Reddit account via the registration page.
+        """Create a new Reddit account via reddit.com.
 
-        Reddit's signup flow (new reddit):
-        1. Navigate to reddit.com/register
-        2. Enter email → Continue
-        3. Enter username + password → Continue
-        4. CAPTCHA verification (mocked)
-        5. Email verification (mocked)
+        Reddit's signup flow (2026):
+        1. Enter email → Continue
+        2. Verify email with 6-digit OTP code (sent to email)
+        3. Enter username + password
+        4. reCAPTCHA (if triggered)
+        5. Account created
         """
+        import logging
+        log = logging.getLogger(__name__)
+
         try:
-            await page.goto("https://www.reddit.com/register")
-            await page.wait_for_timeout(2000)
+            await page.goto("https://www.reddit.com/account/register/")
+            await page.wait_for_load_state("networkidle", timeout=15000)
 
-            # Step 1: Email.
-            email_input = page.locator('input[name="email"], #regEmail')
-            if await email_input.count() > 0:
-                await email_input.fill(email)
-                # Look for continue/next button.
-                continue_btn = page.locator('button:has-text("Continue"), button:has-text("Next")')
-                if await continue_btn.count() > 0:
-                    await continue_btn.first.click()
-                    await page.wait_for_timeout(2000)
+            # --- Step 1: Email ---
+            try:
+                await self._wait_and_fill(
+                    page,
+                    'input[name="email"], input[type="email"], #regEmail',
+                    email,
+                    "email input on registration page",
+                    timeout=15000,
+                )
+            except ElementNotFoundError:
+                for selector in [
+                    'a[href*="register"]',
+                    'a:has-text("Sign Up")',
+                    'button:has-text("Sign Up")',
+                ]:
+                    if await page.locator(selector).count() > 0:
+                        await page.locator(selector).first.click()
+                        await page.wait_for_load_state("networkidle", timeout=10000)
+                        break
+                await self._wait_and_fill(
+                    page,
+                    'input[name="email"], input[type="email"], #regEmail',
+                    email,
+                    "email input (after navigation)",
+                    timeout=15000,
+                )
 
-            # Step 2: Username and password.
-            username_input = page.locator('input[name="username"], #regUsername')
-            if await username_input.count() > 0:
-                await username_input.fill(username)
+            await self._wait_and_click(
+                page,
+                'button:has-text("Continue"), button:has-text("Next"), button[type="submit"]',
+                "continue button after email",
+                timeout=10000,
+            )
+            await page.wait_for_load_state("networkidle", timeout=10000)
 
-            password_input = page.locator('input[name="password"], #regPassword')
-            if await password_input.count() > 0:
-                await password_input.fill(password)
+            # --- Step 2: Email OTP verification ---
+            # Reddit now requires a 6-digit code sent to the email before
+            # proceeding to username/password. Wait for either the OTP input
+            # or the username input to determine which step we're on.
+            otp_or_username = page.locator(
+                'input[placeholder*="erification"], input[placeholder*="code"], '
+                'input[placeholder*="Code"], '
+                'input[name="username"], #regUsername'
+            )
+            try:
+                await otp_or_username.first.wait_for(timeout=15000)
+            except Exception:
+                pass
 
-            # Step 3: Handle CAPTCHA (mock — returns immediately).
-            await solve_captcha(page, "reddit")
+            body_text = await page.locator("body").inner_text()
+            needs_otp = (
+                "verify your email" in body_text.lower()
+                or "verification code" in body_text.lower()
+                or "digit code" in body_text.lower()
+            )
+            if needs_otp:
+                if not email_verifier:
+                    return CreateAccountResponse(
+                        success=False,
+                        error="Reddit requires email verification code but no email verifier configured",
+                    )
+                log.info("Reddit requesting email OTP code, polling Mailpit...")
+                try:
+                    code = await email_verifier.wait_for_verification_code(
+                        recipient=email,
+                        sender_pattern="reddit",
+                        subject_pattern="",
+                        timeout_secs=120,
+                    )
+                    log.info("Got verification code: %s", code)
 
-            # Step 4: Submit.
-            signup_btn = page.locator('button:has-text("Sign Up"), button:has-text("Continue"), button[type="submit"]')
-            if await signup_btn.count() > 0:
-                await signup_btn.first.click()
-                await page.wait_for_timeout(5000)
+                    # Fill the code input.
+                    code_input = page.locator(
+                        'input[type="text"], input[placeholder*="code"], '
+                        'input[placeholder*="Code"], input[name*="code"]'
+                    )
+                    if await code_input.count() > 0:
+                        await code_input.first.fill(code)
+                    else:
+                        return CreateAccountResponse(
+                            success=False,
+                            error="Found verification code but no code input field on page",
+                        )
 
-            # Step 5: Handle email verification (mock).
-            await verify_email(email, "reddit")
+                    # Click Continue — try role-based locator first (handles
+                    # React portals and non-standard button elements), then CSS.
+                    clicked = False
+                    for label in ["Continue", "Verify"]:
+                        btn = page.get_by_role("button", name=label)
+                        if await btn.count() > 0:
+                            await btn.first.click()
+                            clicked = True
+                            break
+                    if not clicked:
+                        # Fallback to CSS selector.
+                        await self._wait_and_click(
+                            page,
+                            'button:has-text("Continue"), button[type="submit"]',
+                            "continue after OTP code",
+                            timeout=10000,
+                        )
+                    await page.wait_for_load_state("networkidle", timeout=15000)
+                except Exception as e:
+                    return CreateAccountResponse(
+                        success=False,
+                        error=f"Email OTP verification failed: {e}",
+                    )
 
-            # Check for success indicators.
+            # --- Step 3: Username + Password ---
+            # After email verification, Reddit shows username/password inputs.
+            await self._wait_and_fill(
+                page,
+                'input[name="username"], #regUsername',
+                username,
+                "username input",
+                timeout=15000,
+            )
+
+            await self._wait_and_fill(
+                page,
+                'input[name="password"], input[type="password"], #regPassword',
+                password,
+                "password input",
+                timeout=10000,
+            )
+
+            # --- Step 4: Solve CAPTCHA ---
+            if captcha:
+                try:
+                    has_recaptcha = await page.locator(
+                        'iframe[src*="recaptcha"], .g-recaptcha'
+                    ).count() > 0
+                    if has_recaptcha:
+                        await captcha.solve(page, "recaptcha_v2")
+                except Exception as e:
+                    log.warning("Captcha solve attempt: %s", e)
+
+            # --- Step 5: Submit ---
+            # Reddit's submit button text varies ("Continue", "Sign Up", etc.)
+            # Use role-based locator for reliability.
+            clicked = False
+            for label in ["Continue", "Sign Up", "Create Account"]:
+                btn = page.get_by_role("button", name=label)
+                if await btn.count() > 0:
+                    await btn.first.click()
+                    clicked = True
+                    break
+            if not clicked:
+                await self._wait_and_click(
+                    page,
+                    'button[type="submit"]',
+                    "signup submit button",
+                    timeout=10000,
+                )
+            await page.wait_for_load_state("networkidle", timeout=15000)
+
+            # --- Verify success ---
             current_url = page.url
-            if "reddit.com" in current_url and "/register" not in current_url:
+            body_text = await page.locator("body").inner_text()
+
+            error_indicators = [
+                "username is taken",
+                "that username is already taken",
+                "invalid email",
+                "password must be",
+                "something went wrong",
+            ]
+            body_lower = body_text.lower()
+            for indicator in error_indicators:
+                if indicator in body_lower:
+                    return CreateAccountResponse(success=False, error=indicator)
+
+            if "reddit.com" in current_url and "/register" not in current_url and "/account/register" not in current_url:
                 return CreateAccountResponse(
                     success=True,
                     username=username,
@@ -159,21 +315,11 @@ class RedditPlatform(BasePlatform):
                     },
                 )
 
-            # Check for error messages on the page.
-            body_text = await page.locator("body").inner_text()
-            error_indicators = [
-                "username is taken",
-                "that username is already taken",
-                "invalid email",
-                "password must be",
-            ]
-            for indicator in error_indicators:
-                if indicator in body_text.lower():
-                    return CreateAccountResponse(success=False, error=indicator)
-
             return CreateAccountResponse(
                 success=False,
-                error=f"signup may have been blocked by captcha or verification — URL: {current_url}",
+                error=f"signup may have been blocked — URL: {current_url}",
             )
+        except ElementNotFoundError as e:
+            return CreateAccountResponse(success=False, error=str(e))
         except Exception as e:
             return CreateAccountResponse(success=False, error=str(e))

@@ -41,6 +41,20 @@ const FIELD_SCHEMA: Record<string, Record<string, FieldDef[]>> = {
       { key: "password", label: "Password", type: "password" },
     ],
   },
+  gmail: {
+    api: [
+      { key: "email", label: "Gmail Address", type: "text" },
+      { key: "app_password", label: "App Password", type: "password" },
+      { key: "default_recipient", label: "Default Recipient", type: "text" },
+    ],
+  },
+  google_groups: {
+    api: [
+      { key: "email", label: "Gmail Address", type: "text" },
+      { key: "app_password", label: "App Password", type: "password" },
+      { key: "group_email", label: "Group Email (e.g. mygroup@googlegroups.com)", type: "text" },
+    ],
+  },
 };
 
 // -- Helpers -------------------------------------------------------------

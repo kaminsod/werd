@@ -63,6 +63,8 @@ func main() {
 	adapterRegistry.Register("bluesky:api", integration.NewBluesky(""))
 	adapterRegistry.Register("reddit:api", integration.NewReddit())
 	adapterRegistry.Register("hn:api", integration.NewHN())
+	adapterRegistry.Register("gmail:api", integration.NewGmail())
+	adapterRegistry.Register("google_groups:api", integration.NewGoogleGroups())
 
 	// Browser adapters (only if browser service is configured).
 	if cfg.BrowserServiceURL != "" {

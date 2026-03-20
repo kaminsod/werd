@@ -336,6 +336,14 @@ func extractTarget(platform string, credentials []byte) string {
 		if user, ok := creds["username"].(string); ok && user != "" {
 			return user
 		}
+	case "gmail":
+		if email, ok := creds["email"].(string); ok && email != "" {
+			return email
+		}
+	case "google_groups":
+		if group, ok := creds["group_email"].(string); ok && group != "" {
+			return group
+		}
 	}
 	return ""
 }

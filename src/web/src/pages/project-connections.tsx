@@ -4,12 +4,14 @@ import { useConnections, useCreateConnection, useUpdateConnection, useDeleteConn
 import CredentialEditor from "@/components/credential-editor";
 import type { Connection, ConnectionMethod } from "@/types/api";
 
-const PLATFORMS = ["bluesky", "reddit", "hn"];
+const PLATFORMS = ["bluesky", "reddit", "hn", "gmail", "google_groups"];
 
 const PLATFORM_LABELS: Record<string, string> = {
   bluesky: "Bluesky",
   reddit: "Reddit",
   hn: "Hacker News",
+  gmail: "Gmail",
+  google_groups: "Google Groups",
 };
 
 const METHOD_GUIDANCE: Record<string, Record<string, string>> = {
@@ -25,10 +27,16 @@ const METHOD_GUIDANCE: Record<string, Record<string, string>> = {
     api: "Monitoring only — HN has no posting API.",
     browser: "Required for posting to HN. Uses account password.",
   },
+  gmail: {
+    api: "Send emails via SMTP. Requires an app password (Google account → 2FA → App passwords).",
+  },
+  google_groups: {
+    api: "Post to a Google Group via email. Requires group membership and an app password.",
+  },
 };
 
 // API-publishable platforms (HN needs browser for posting).
-const API_PUBLISHABLE = new Set(["bluesky", "reddit"]);
+const API_PUBLISHABLE = new Set(["bluesky", "reddit", "gmail", "google_groups"]);
 
 export default function ConnectionsPage() {
   const { id: projectId } = useParams<{ id: string }>();

@@ -1461,12 +1461,13 @@ components:
           format: uuid
         platform:
           type: string
+          enum: [bluesky, reddit, hn, gmail, google_groups]
         method:
           type: string
           enum: [api, browser]
         target:
           type: string
-          description: Non-secret display target (e.g. r/golang, @user.bsky.social)
+          description: Non-secret display target (e.g. r/golang, @user.bsky.social, user@gmail.com, group@googlegroups.com)
         enabled:
           type: boolean
         created_at:

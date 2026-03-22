@@ -60,8 +60,9 @@ export const navSources: HelpEntry = {
       </p>
       <p className="mb-2"><strong>Source types:</strong></p>
       <ul className="mb-2 list-inside list-disc space-y-1">
-        <li><strong>reddit</strong> — subreddits to watch</li>
-        <li><strong>hn</strong> — Hacker News topics</li>
+        <li><strong>reddit</strong> — subreddits, threads, or account activity</li>
+        <li><strong>hn</strong> — Hacker News stories, threads, or accounts</li>
+        <li><strong>bluesky</strong> — account notifications or user feeds</li>
         <li><strong>web</strong> — web pages via changedetection.io</li>
         <li><strong>rss</strong> — RSS/Atom feeds via RSSHub</li>
         <li><strong>github</strong> — repositories and organizations</li>

@@ -2,10 +2,20 @@ import { useState, type FormEvent } from "react";
 import { useParams, Link } from "react-router";
 import { useSources, useCreateSource, useUpdateSource, useDeleteSource } from "@/hooks/use-sources";
 import InfoIcon from "@/components/info-icon";
-import { sourceConfig as sourceConfigHelp } from "@/lib/help-content";
+import { navSources as sourcesHelp } from "@/lib/help-content";
+import SourceConfigEditor, { defaultConfigForType, parseConfig } from "@/components/source-config-editor";
 import type { MonitorType, Source } from "@/types/api";
 
 const SOURCE_TYPES: MonitorType[] = ["reddit", "hn", "bluesky", "web", "rss", "github"];
+
+const TYPE_LABELS: Record<MonitorType, string> = {
+  reddit: "Reddit",
+  hn: "Hacker News",
+  bluesky: "Bluesky",
+  web: "Web",
+  rss: "RSS",
+  github: "GitHub",
+};
 
 const TYPE_COLORS: Record<MonitorType, string> = {
   reddit: "bg-orange-100 text-orange-700",
@@ -25,109 +35,38 @@ export default function SourcesPage() {
 
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
-  const [formType, setFormType] = useState<MonitorType>("web");
-  const [formConfig, setFormConfig] = useState("{}");
+  const [formType, setFormType] = useState<MonitorType>("reddit");
+  const [formConfig, setFormConfig] = useState(() => defaultConfigForType("reddit"));
   const [formEnabled, setFormEnabled] = useState(true);
-  // Structured config fields for reddit/hn.
-  const [formMode, setFormMode] = useState("subreddit");
-  const [formSubreddit, setFormSubreddit] = useState("");
-  const [formThreadId, setFormThreadId] = useState("");
-  const [formItemId, setFormItemId] = useState("");
-  const [formPollInterval, setFormPollInterval] = useState("300");
-
-  const useStructuredForm = formType === "reddit" || formType === "hn" || formType === "bluesky";
-  const [formCheckInbox, setFormCheckInbox] = useState(true);
-  const [formCheckMentions, setFormCheckMentions] = useState(true);
-  const [formUsername, setFormUsername] = useState("");
-  const [formHandle, setFormHandle] = useState("");
 
   function resetForm() {
-    setFormType("web");
-    setFormConfig("{}");
+    setFormType("reddit");
+    setFormConfig(defaultConfigForType("reddit"));
     setFormEnabled(true);
-    setFormMode("subreddit");
-    setFormSubreddit("");
-    setFormThreadId("");
-    setFormItemId("");
-    setFormPollInterval("300");
     setShowForm(false);
     setEditId(null);
+  }
+
+  function handleTypeChange(newType: MonitorType) {
+    setFormType(newType);
+    setFormConfig(defaultConfigForType(newType));
   }
 
   function startEdit(src: Source) {
     setEditId(src.id);
     setFormType(src.type);
     setFormEnabled(src.enabled);
+    setFormConfig(JSON.stringify(src.config, null, 2));
     setShowForm(true);
-
-    const cfg = src.config as Record<string, unknown>;
-    if (src.type === "reddit" || src.type === "hn") {
-      setFormMode((cfg.mode as string) || "subreddit");
-      setFormSubreddit((cfg.subreddit as string) || "");
-      setFormThreadId((cfg.thread_id as string) || "");
-      setFormItemId(cfg.item_id ? String(cfg.item_id) : "");
-      setFormPollInterval(cfg.poll_interval_secs ? String(cfg.poll_interval_secs) : "300");
-      setFormConfig(JSON.stringify(cfg, null, 2));
-    } else if (src.type === "bluesky") {
-      setFormMode((cfg.mode as string) || "account");
-      setFormHandle((cfg.handle as string) || "");
-      setFormPollInterval(cfg.poll_interval_secs ? String(cfg.poll_interval_secs) : "300");
-      setFormConfig(JSON.stringify(cfg, null, 2));
-    } else {
-      setFormConfig(JSON.stringify(cfg, null, 2));
-    }
-  }
-
-  function buildConfig(): Record<string, unknown> {
-    if (formType === "reddit") {
-      const base: Record<string, unknown> = {
-        mode: formMode,
-        poll_interval_secs: parseInt(formPollInterval) || 300,
-      };
-      if (formMode === "thread") {
-        base.thread_id = formThreadId;
-        base.subreddit = formSubreddit;
-      } else if (formMode === "account") {
-        base.check_inbox = formCheckInbox;
-        base.check_mentions = formCheckMentions;
-      } else {
-        base.subreddit = formSubreddit;
-      }
-      return base;
-    }
-    if (formType === "hn") {
-      const base: Record<string, unknown> = {
-        mode: formMode,
-        poll_interval_secs: parseInt(formPollInterval) || (formMode === "account" ? 600 : 300),
-      };
-      if (formMode === "thread") {
-        base.item_id = parseInt(formItemId) || 0;
-      } else if (formMode === "account") {
-        base.username = formUsername;
-      }
-      return base;
-    }
-    if (formType === "bluesky") {
-      const base: Record<string, unknown> = {
-        mode: formMode,
-        poll_interval_secs: parseInt(formPollInterval) || 300,
-      };
-      if (formMode === "user") {
-        base.handle = formHandle;
-      }
-      return base;
-    }
-    // Fallback: parse JSON.
-    try {
-      return JSON.parse(formConfig);
-    } catch {
-      return {};
-    }
   }
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    const config = buildConfig();
+    const config = parseConfig(formConfig);
+    if (!config) {
+      alert("Invalid JSON in config");
+      return;
+    }
 
     if (editId) {
       updateSource.mutate(
@@ -143,7 +82,7 @@ export default function SourcesPage() {
   }
 
   function handleDelete(sourceId: string) {
-    if (confirm("Delete this monitor source?")) {
+    if (confirm("Delete this source?")) {
       deleteSource.mutate(sourceId);
     }
   }
@@ -154,7 +93,10 @@ export default function SourcesPage() {
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Monitor Sources</h2>
+        <h2 className="text-xl font-semibold">
+          Sources
+          <InfoIcon tooltip={sourcesHelp.tooltip}>{sourcesHelp.modal}</InfoIcon>
+        </h2>
         <button
           onClick={() => { resetForm(); setShowForm(!showForm); }}
           className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
@@ -178,11 +120,11 @@ export default function SourcesPage() {
               <label className="mb-1 block text-xs font-medium text-gray-600">Type</label>
               <select
                 value={formType}
-                onChange={(e) => setFormType(e.target.value as MonitorType)}
+                onChange={(e) => handleTypeChange(e.target.value as MonitorType)}
                 className="rounded border px-3 py-2 text-sm"
               >
                 {SOURCE_TYPES.map((t) => (
-                  <option key={t} value={t}>{t}</option>
+                  <option key={t} value={t}>{TYPE_LABELS[t]}</option>
                 ))}
               </select>
             </div>
@@ -196,128 +138,11 @@ export default function SourcesPage() {
             </label>
           </div>
 
-          {useStructuredForm ? (
-            <>
-              {/* Mode selector */}
-              <div>
-                <label className="mb-1 block text-xs font-medium text-gray-600">Mode</label>
-                <select value={formMode} onChange={(e) => setFormMode(e.target.value)} className="rounded border px-3 py-2 text-sm">
-                  {formType === "reddit" && (
-                    <>
-                      <option value="subreddit">Subreddit (new posts)</option>
-                      <option value="thread">Thread (comments)</option>
-                      <option value="account">Account (inbox & mentions)</option>
-                    </>
-                  )}
-                  {formType === "hn" && (
-                    <>
-                      <option value="keywords">Keywords (new stories)</option>
-                      <option value="new">All New Stories</option>
-                      <option value="thread">Thread (comments)</option>
-                      <option value="account">Account (submission replies)</option>
-                    </>
-                  )}
-                  {formType === "bluesky" && (
-                    <>
-                      <option value="account">Account (notifications)</option>
-                      <option value="user">User Feed (posts by a user)</option>
-                    </>
-                  )}
-                </select>
-              </div>
-
-              {/* Reddit fields */}
-              {formType === "reddit" && formMode === "subreddit" && (
-                <div className="space-y-2">
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">Subreddit</label>
-                    <input value={formSubreddit} onChange={(e) => setFormSubreddit(e.target.value)} required placeholder="golang" className="w-full rounded border px-3 py-2 text-sm" />
-                  </div>
-                  <p className="text-xs text-gray-500">All new posts will be fetched. Use processing rules to filter by keywords, regex, or LLM classification.</p>
-                </div>
-              )}
-              {formType === "reddit" && formMode === "thread" && (
-                <div className="space-y-2">
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">Thread ID</label>
-                    <input value={formThreadId} onChange={(e) => setFormThreadId(e.target.value)} required placeholder="t3_abc123" className="w-full rounded border px-3 py-2 text-sm font-mono" />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">Subreddit</label>
-                    <input value={formSubreddit} onChange={(e) => setFormSubreddit(e.target.value)} placeholder="golang" className="w-full rounded border px-3 py-2 text-sm" />
-                  </div>
-                </div>
-              )}
-              {formType === "reddit" && formMode === "account" && (
-                <div className="space-y-2">
-                  <label className="flex items-center gap-2">
-                    <input type="checkbox" checked={formCheckInbox} onChange={(e) => setFormCheckInbox(e.target.checked)} />
-                    <span className="text-sm">Check inbox (replies & messages)</span>
-                  </label>
-                  <label className="flex items-center gap-2">
-                    <input type="checkbox" checked={formCheckMentions} onChange={(e) => setFormCheckMentions(e.target.checked)} />
-                    <span className="text-sm">Check mentions (u/username)</span>
-                  </label>
-                </div>
-              )}
-
-              {/* HN fields */}
-              {formType === "hn" && formMode === "keywords" && (
-                <div>
-                  <p className="text-xs text-gray-500">Monitors new HN stories. All stories are fetched; use processing rules to filter by keywords, regex, or LLM classification.</p>
-                </div>
-              )}
-              {formType === "hn" && formMode === "thread" && (
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-600">HN Item ID</label>
-                  <input value={formItemId} onChange={(e) => setFormItemId(e.target.value)} required type="number" placeholder="12345678" className="w-full rounded border px-3 py-2 text-sm font-mono" />
-                </div>
-              )}
-              {formType === "hn" && formMode === "account" && (
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-600">HN Username</label>
-                  <input value={formUsername} onChange={(e) => setFormUsername(e.target.value)} required placeholder="dang" className="w-full rounded border px-3 py-2 text-sm" />
-                </div>
-              )}
-
-              {/* HN: new mode has no extra fields (monitors all new stories) */}
-              {formType === "hn" && formMode === "new" && (
-                <p className="text-xs text-gray-500">Monitors all new HN stories. Use processing rules to filter by keywords, regex, or LLM classification.</p>
-              )}
-
-              {/* Bluesky: account mode has no extra fields (uses platform connection creds) */}
-              {formType === "bluesky" && formMode === "account" && (
-                <p className="text-xs text-gray-500">Monitors replies, mentions, and quotes on your Bluesky account. Credentials are taken from your Bluesky platform connection.</p>
-              )}
-              {formType === "bluesky" && formMode === "user" && (
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-600">Bluesky Handle</label>
-                  <input value={formHandle} onChange={(e) => setFormHandle(e.target.value)} required placeholder="user.bsky.social" className="w-full rounded border px-3 py-2 text-sm" />
-                  <p className="mt-1 text-xs text-gray-500">Monitors all posts by this user. Credentials are taken from your Bluesky platform connection.</p>
-                </div>
-              )}
-
-              {/* Poll interval */}
-              <div>
-                <label className="mb-1 block text-xs font-medium text-gray-600">Poll interval (seconds)</label>
-                <input value={formPollInterval} onChange={(e) => setFormPollInterval(e.target.value)} type="number" min="60" className="w-32 rounded border px-3 py-2 text-sm" />
-              </div>
-            </>
-          ) : (
-            <div>
-              <label className="mb-1 block text-xs font-medium text-gray-600">
-                Config (JSON)
-                <InfoIcon tooltip={sourceConfigHelp.tooltip}>{sourceConfigHelp.modal}</InfoIcon>
-              </label>
-              <textarea
-                value={formConfig}
-                onChange={(e) => setFormConfig(e.target.value)}
-                rows={4}
-                className="w-full rounded border px-3 py-2 font-mono text-sm"
-                placeholder='{"urls": ["https://example.com/blog"]}'
-              />
-            </div>
-          )}
+          <SourceConfigEditor
+            sourceType={formType}
+            config={formConfig}
+            onConfigChange={setFormConfig}
+          />
 
           <button
             type="submit"
@@ -335,14 +160,14 @@ export default function SourcesPage() {
       )}
 
       {sources!.length === 0 ? (
-        <p className="text-gray-500">No monitor sources configured.</p>
+        <p className="text-gray-500">No sources configured.</p>
       ) : (
         <div className="space-y-2">
           {sources!.map((src) => (
             <div key={src.id} className="flex items-center justify-between rounded border bg-white p-3">
               <div className="flex items-center gap-3">
                 <span className={`rounded px-2 py-0.5 text-xs font-medium ${TYPE_COLORS[src.type]}`}>
-                  {src.type}
+                  {TYPE_LABELS[src.type] ?? src.type}
                 </span>
                 <span className={`rounded px-2 py-0.5 text-xs ${src.enabled ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-400"}`}>
                   {src.enabled ? "enabled" : "disabled"}

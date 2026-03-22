@@ -2,9 +2,19 @@ import { useState, type FormEvent } from "react";
 import { useParams, Link, useNavigate } from "react-router";
 import { useSource, useUpdateSource, useDeleteSource } from "@/hooks/use-sources";
 import { useProcessingRules } from "@/hooks/use-processing-rules";
+import SourceConfigEditor from "@/components/source-config-editor";
 import type { MonitorType } from "@/types/api";
 
 const SOURCE_TYPES: MonitorType[] = ["reddit", "hn", "bluesky", "web", "rss", "github"];
+
+const TYPE_LABELS: Record<MonitorType, string> = {
+  reddit: "Reddit",
+  hn: "Hacker News",
+  bluesky: "Bluesky",
+  web: "Web",
+  rss: "RSS",
+  github: "GitHub",
+};
 
 const TYPE_COLORS: Record<MonitorType, string> = {
   reddit: "bg-orange-100 text-orange-700",
@@ -54,7 +64,7 @@ export default function SourceDetailPage() {
   }
 
   function handleDelete() {
-    if (confirm("Delete this monitor source?")) {
+    if (confirm("Delete this source?")) {
       deleteSource.mutate(sourceId!, { onSuccess: () => navigate("../sources") });
     }
   }
@@ -68,8 +78,8 @@ export default function SourceDetailPage() {
       <Link to="../sources" className="mb-4 inline-block text-sm text-blue-600 hover:underline">&larr; Back to Sources</Link>
 
       <div className="mb-4 flex items-center gap-3">
-        <h2 className="text-xl font-semibold">Monitor Source</h2>
-        <span className={`rounded px-2 py-0.5 text-xs font-medium ${TYPE_COLORS[source.type]}`}>{source.type}</span>
+        <h2 className="text-xl font-semibold">Source</h2>
+        <span className={`rounded px-2 py-0.5 text-xs font-medium ${TYPE_COLORS[source.type]}`}>{TYPE_LABELS[source.type] ?? source.type}</span>
         <span className={`rounded px-2 py-0.5 text-xs ${source.enabled ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-400"}`}>
           {source.enabled ? "enabled" : "disabled"}
         </span>
@@ -84,7 +94,7 @@ export default function SourceDetailPage() {
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-600">Type</label>
               <select value={formType} onChange={(e) => setFormType(e.target.value as MonitorType)} className="rounded border px-3 py-2 text-sm">
-                {SOURCE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                {SOURCE_TYPES.map((t) => <option key={t} value={t}>{TYPE_LABELS[t]}</option>)}
               </select>
             </div>
             <label className="flex items-center gap-2 self-end">
@@ -93,10 +103,11 @@ export default function SourceDetailPage() {
             </label>
           </div>
 
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-600">Config (JSON)</label>
-            <textarea value={formConfig} onChange={(e) => setFormConfig(e.target.value)} rows={6} className="w-full rounded border px-3 py-2 font-mono text-sm" />
-          </div>
+          <SourceConfigEditor
+            sourceType={formType}
+            config={formConfig}
+            onConfigChange={setFormConfig}
+          />
 
           <div className="flex gap-2">
             <button type="submit" disabled={updateSource.isPending} className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">Update</button>

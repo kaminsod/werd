@@ -60,8 +60,21 @@ export function useDeletePost(projectId: string) {
 export function usePublishPost(projectId: string) {
   const qc = useQueryClient();
   return useMutation({
+    mutationFn: ({ postId, scheduledAt }: { postId: string; scheduledAt?: string }) =>
+      apiMutate<PublishResponse>(
+        `/projects/${projectId}/posts/${postId}/publish`,
+        "POST",
+        scheduledAt ? { scheduled_at: scheduledAt } : undefined,
+      ),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["projects", projectId, "posts"] }),
+  });
+}
+
+export function useUnschedulePost(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
     mutationFn: (postId: string) =>
-      apiMutate<PublishResponse>(`/projects/${projectId}/posts/${postId}/publish`, "POST"),
+      apiMutate<Post>(`/projects/${projectId}/posts/${postId}/unschedule`, "POST"),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["projects", projectId, "posts"] }),
   });
 }

@@ -126,6 +126,7 @@ func New(
 				r.Put("/posts/{postID}", platformH.UpdatePost)
 				r.Delete("/posts/{postID}", platformH.DeletePost)
 				r.Post("/posts/{postID}/publish", platformH.PublishPost)
+				r.Post("/posts/{postID}/unschedule", platformH.CancelSchedule)
 				r.Put("/posts/{postID}/monitor", platformH.SetPostMonitor)
 			})
 		})

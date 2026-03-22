@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { useParams, Link, useNavigate } from "react-router";
-import { usePost, useUpdatePost, useDeletePost, usePublishPost, useSetPostMonitor } from "@/hooks/use-posts";
+import { usePost, useUpdatePost, useDeletePost, usePublishPost, useUnschedulePost, useSetPostMonitor } from "@/hooks/use-posts";
 import { useConnections } from "@/hooks/use-connections";
 import type { PostStatus, PlatformPublishResult } from "@/types/api";
 
@@ -8,9 +8,11 @@ const PLATFORM_LABELS: Record<string, string> = {
   bluesky: "Bluesky",
   reddit: "Reddit",
   hn: "Hacker News",
+  gmail: "Gmail",
+  google_groups: "Google Groups",
 };
 
-const ALL_PLATFORMS = ["bluesky", "reddit", "hn"];
+const ALL_PLATFORMS = ["bluesky", "reddit", "hn", "gmail", "google_groups"];
 
 const STATUS_COLORS: Record<PostStatus, string> = {
   draft: "bg-gray-100 text-gray-700",
@@ -28,6 +30,7 @@ export default function PostDetailPage() {
   const updatePost = useUpdatePost(projectId!);
   const deletePost = useDeletePost(projectId!);
   const publishPost = usePublishPost(projectId!);
+  const unschedulePost = useUnschedulePost(projectId!);
   const setMonitor = useSetPostMonitor(projectId!);
 
   const [editing, setEditing] = useState(false);
@@ -39,8 +42,10 @@ export default function PostDetailPage() {
   const [publishResults, setPublishResults] = useState<PlatformPublishResult[] | null>(null);
   const [isReply, setIsReply] = useState(false);
   const [replyToURL, setReplyToURL] = useState("");
+  const [showSchedule, setShowSchedule] = useState(false);
+  const [scheduleDateTime, setScheduleDateTime] = useState("");
 
-  const API_PUB = new Set(["bluesky", "reddit"]);
+  const API_PUB = new Set(["bluesky", "reddit", "gmail", "google_groups"]);
   const BROWSER_PUB = new Set(["bluesky", "reddit", "hn"]);
   const availablePlatforms = connections
     ?.filter((c) => c.enabled && ((c.method === "api" && API_PUB.has(c.platform)) || (c.method === "browser" && BROWSER_PUB.has(c.platform))))
@@ -92,9 +97,21 @@ export default function PostDetailPage() {
   }
 
   function handlePublish() {
-    publishPost.mutate(postId!, {
+    publishPost.mutate({ postId: postId! }, {
       onSuccess: (res) => setPublishResults(res.results),
     });
+  }
+
+  function handleSchedule() {
+    if (!scheduleDateTime) return;
+    const scheduledAt = new Date(scheduleDateTime).toISOString();
+    publishPost.mutate({ postId: postId!, scheduledAt }, {
+      onSuccess: () => { setShowSchedule(false); setScheduleDateTime(""); },
+    });
+  }
+
+  function handleUnschedule() {
+    unschedulePost.mutate(postId!);
   }
 
   if (isLoading) return <p className="text-gray-500">Loading post...</p>;
@@ -306,11 +323,58 @@ export default function PostDetailPage() {
             )}
           </div>
 
-          <div className="flex gap-2 border-t pt-4">
+          <div className="flex flex-wrap items-center gap-2 border-t pt-4">
             {post.status === "draft" && (
               <>
                 <button onClick={handlePublish} disabled={publishPost.isPending} className="rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50">
                   {publishPost.isPending ? "Publishing..." : "Publish Now"}
+                </button>
+                {showSchedule ? (
+                  <span className="inline-flex items-center gap-1">
+                    <input
+                      type="datetime-local"
+                      value={scheduleDateTime}
+                      onChange={(e) => setScheduleDateTime(e.target.value)}
+                      min={new Date().toISOString().slice(0, 16)}
+                      className="rounded border px-2 py-1 text-xs"
+                    />
+                    <button
+                      onClick={handleSchedule}
+                      disabled={!scheduleDateTime || publishPost.isPending}
+                      className="rounded bg-indigo-600 px-2 py-1 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                    >
+                      Confirm
+                    </button>
+                    <button onClick={() => { setShowSchedule(false); setScheduleDateTime(""); }} className="text-xs text-gray-500 hover:text-gray-700">
+                      Cancel
+                    </button>
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => setShowSchedule(true)}
+                    className="rounded border border-indigo-300 px-3 py-1 text-xs text-indigo-600 hover:bg-indigo-50"
+                  >
+                    Schedule
+                  </button>
+                )}
+                <button onClick={startEdit} className="rounded px-2 py-1 text-xs text-blue-600 hover:bg-blue-50">Edit</button>
+                <button onClick={handleDelete} className="rounded px-2 py-1 text-xs text-red-600 hover:bg-red-50">Delete</button>
+              </>
+            )}
+            {post.status === "scheduled" && (
+              <>
+                <span className="text-xs text-blue-600">
+                  Scheduled: {post.scheduled_at ? new Date(post.scheduled_at).toLocaleString() : ""}
+                </span>
+                <button onClick={handlePublish} disabled={publishPost.isPending} className="rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50">
+                  Publish Now
+                </button>
+                <button
+                  onClick={handleUnschedule}
+                  disabled={unschedulePost.isPending}
+                  className="rounded border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Cancel Schedule
                 </button>
                 <button onClick={startEdit} className="rounded px-2 py-1 text-xs text-blue-600 hover:bg-blue-50">Edit</button>
                 <button onClick={handleDelete} className="rounded px-2 py-1 text-xs text-red-600 hover:bg-red-50">Delete</button>

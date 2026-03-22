@@ -104,7 +104,7 @@ func (q *Queries) CreatePublishedPost(ctx context.Context, arg CreatePublishedPo
 
 const deletePublishedPost = `-- name: DeletePublishedPost :exec
 DELETE FROM published_posts
-WHERE id = $1 AND project_id = $2 AND status = 'draft'
+WHERE id = $1 AND project_id = $2 AND status IN ('draft', 'scheduled')
 `
 
 type DeletePublishedPostParams struct {
@@ -299,6 +299,56 @@ func (q *Queries) ListPublishedPostsByStatus(ctx context.Context, arg ListPublis
 	return items, nil
 }
 
+const schedulePublishedPost = `-- name: SchedulePublishedPost :one
+UPDATE published_posts
+SET status = 'scheduled', scheduled_at = $3
+WHERE id = $1 AND project_id = $2 AND status = 'draft'
+RETURNING id, project_id, title, content, url, post_type, platforms, reply_to_url, scheduled_at, published_at, status, created_at, updated_at
+`
+
+type SchedulePublishedPostParams struct {
+	ID          uuid.UUID          `json:"id"`
+	ProjectID   uuid.UUID          `json:"project_id"`
+	ScheduledAt pgtype.Timestamptz `json:"scheduled_at"`
+}
+
+type SchedulePublishedPostRow struct {
+	ID          uuid.UUID          `json:"id"`
+	ProjectID   uuid.UUID          `json:"project_id"`
+	Title       string             `json:"title"`
+	Content     string             `json:"content"`
+	Url         string             `json:"url"`
+	PostType    PostType           `json:"post_type"`
+	Platforms   []string           `json:"platforms"`
+	ReplyToUrl  string             `json:"reply_to_url"`
+	ScheduledAt pgtype.Timestamptz `json:"scheduled_at"`
+	PublishedAt pgtype.Timestamptz `json:"published_at"`
+	Status      PostStatus         `json:"status"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) SchedulePublishedPost(ctx context.Context, arg SchedulePublishedPostParams) (SchedulePublishedPostRow, error) {
+	row := q.db.QueryRow(ctx, schedulePublishedPost, arg.ID, arg.ProjectID, arg.ScheduledAt)
+	var i SchedulePublishedPostRow
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.Title,
+		&i.Content,
+		&i.Url,
+		&i.PostType,
+		&i.Platforms,
+		&i.ReplyToUrl,
+		&i.ScheduledAt,
+		&i.PublishedAt,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const setPublishedPostPublished = `-- name: SetPublishedPostPublished :one
 UPDATE published_posts
 SET status = 'published', published_at = now()
@@ -348,10 +398,59 @@ func (q *Queries) SetPublishedPostPublished(ctx context.Context, arg SetPublishe
 	return i, err
 }
 
+const unschedulePublishedPost = `-- name: UnschedulePublishedPost :one
+UPDATE published_posts
+SET status = 'draft', scheduled_at = NULL
+WHERE id = $1 AND project_id = $2 AND status = 'scheduled'
+RETURNING id, project_id, title, content, url, post_type, platforms, reply_to_url, scheduled_at, published_at, status, created_at, updated_at
+`
+
+type UnschedulePublishedPostParams struct {
+	ID        uuid.UUID `json:"id"`
+	ProjectID uuid.UUID `json:"project_id"`
+}
+
+type UnschedulePublishedPostRow struct {
+	ID          uuid.UUID          `json:"id"`
+	ProjectID   uuid.UUID          `json:"project_id"`
+	Title       string             `json:"title"`
+	Content     string             `json:"content"`
+	Url         string             `json:"url"`
+	PostType    PostType           `json:"post_type"`
+	Platforms   []string           `json:"platforms"`
+	ReplyToUrl  string             `json:"reply_to_url"`
+	ScheduledAt pgtype.Timestamptz `json:"scheduled_at"`
+	PublishedAt pgtype.Timestamptz `json:"published_at"`
+	Status      PostStatus         `json:"status"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) UnschedulePublishedPost(ctx context.Context, arg UnschedulePublishedPostParams) (UnschedulePublishedPostRow, error) {
+	row := q.db.QueryRow(ctx, unschedulePublishedPost, arg.ID, arg.ProjectID)
+	var i UnschedulePublishedPostRow
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.Title,
+		&i.Content,
+		&i.Url,
+		&i.PostType,
+		&i.Platforms,
+		&i.ReplyToUrl,
+		&i.ScheduledAt,
+		&i.PublishedAt,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const updatePublishedPost = `-- name: UpdatePublishedPost :one
 UPDATE published_posts
 SET title = $3, content = $4, url = $5, post_type = $6, platforms = $7, reply_to_url = $8
-WHERE id = $1 AND project_id = $2 AND status = 'draft'
+WHERE id = $1 AND project_id = $2 AND status IN ('draft', 'scheduled')
 RETURNING id, project_id, title, content, url, post_type, platforms, reply_to_url, scheduled_at, published_at, status, created_at, updated_at
 `
 

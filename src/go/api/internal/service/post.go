@@ -8,18 +8,30 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/riverqueue/river"
 
 	"github.com/werd-platform/werd/src/go/api/internal/integration"
 	"github.com/werd-platform/werd/src/go/api/internal/storage"
 )
 
+// publishPostArgs matches worker.PublishPostArgs for river job insertion.
+type publishPostArgs struct {
+	ProjectID string `json:"project_id"`
+	PostID    string `json:"post_id"`
+}
+
+func (publishPostArgs) Kind() string { return "publish_post" }
+
 var (
 	ErrPostNotFound       = errors.New("post not found")
 	ErrPostNotDraft       = errors.New("only draft posts can be modified")
+	ErrPostNotScheduled   = errors.New("post is not scheduled")
 	ErrNoPlatforms        = errors.New("no platforms specified")
 	ErrPublishFailed      = errors.New("publish failed on one or more platforms")
 	ErrReplyMultiPlatform = errors.New("replies must target exactly one platform")
+	ErrSchedulePast       = errors.New("scheduled time must be in the future")
 )
 
 type PostInfo struct {
@@ -56,10 +68,16 @@ type Post struct {
 	q           *storage.Queries
 	platformSvc *Platform
 	registry    *integration.Registry
+	riverClient *river.Client[pgx.Tx]
 }
 
 func NewPost(q *storage.Queries, platformSvc *Platform, registry *integration.Registry) *Post {
 	return &Post{q: q, platformSvc: platformSvc, registry: registry}
+}
+
+// SetRiverClient sets the river client (breaks circular init dependency in main.go).
+func (s *Post) SetRiverClient(client *river.Client[pgx.Tx]) {
+	s.riverClient = client
 }
 
 // Create creates a new draft post.
@@ -233,7 +251,7 @@ func (s *Post) Delete(ctx context.Context, projectID, postID string) error {
 	if err != nil {
 		return ErrPostNotFound
 	}
-	if post.Status != storage.PostStatusDraft {
+	if post.Status != storage.PostStatusDraft && post.Status != storage.PostStatusScheduled {
 		return ErrPostNotDraft
 	}
 
@@ -300,7 +318,7 @@ func (s *Post) Publish(ctx context.Context, projectID, postID string) ([]Platfor
 	if err != nil {
 		return nil, ErrPostNotFound
 	}
-	if post.Status != storage.PostStatusDraft {
+	if post.Status != storage.PostStatusDraft && post.Status != storage.PostStatusFailed {
 		return nil, ErrPostNotDraft
 	}
 	if len(post.Platforms) == 0 {
@@ -401,6 +419,185 @@ func (s *Post) Publish(ctx context.Context, projectID, postID string) ([]Platfor
 	return results, nil
 }
 
+// Schedule schedules a draft post for future publishing via river.
+func (s *Post) Schedule(ctx context.Context, projectID, postID string, scheduledAt time.Time) (*PostInfo, error) {
+	pid, err := uuid.Parse(projectID)
+	if err != nil {
+		return nil, ErrPostNotFound
+	}
+	poid, err := uuid.Parse(postID)
+	if err != nil {
+		return nil, ErrPostNotFound
+	}
+
+	if scheduledAt.Before(time.Now()) {
+		return nil, ErrSchedulePast
+	}
+
+	post, err := s.q.SchedulePublishedPost(ctx, storage.SchedulePublishedPostParams{
+		ID:          poid,
+		ProjectID:   pid,
+		ScheduledAt: pgtype.Timestamptz{Time: scheduledAt, Valid: true},
+	})
+	if err != nil {
+		return nil, ErrPostNotDraft
+	}
+
+	// Enqueue the river job.
+	if s.riverClient != nil {
+		_, err = s.riverClient.Insert(ctx, publishPostArgs{
+			ProjectID: projectID,
+			PostID:    postID,
+		}, &river.InsertOpts{ScheduledAt: scheduledAt})
+		if err != nil {
+			// Rollback the schedule status if the job insert fails.
+			s.q.UnschedulePublishedPost(ctx, storage.UnschedulePublishedPostParams{
+				ID: poid, ProjectID: pid,
+			})
+			return nil, fmt.Errorf("enqueuing scheduled job: %w", err)
+		}
+	}
+
+	return postFromSchedule(post), nil
+}
+
+// Unschedule cancels a scheduled post, reverting it to draft.
+func (s *Post) Unschedule(ctx context.Context, projectID, postID string) (*PostInfo, error) {
+	pid, err := uuid.Parse(projectID)
+	if err != nil {
+		return nil, ErrPostNotFound
+	}
+	poid, err := uuid.Parse(postID)
+	if err != nil {
+		return nil, ErrPostNotFound
+	}
+
+	post, err := s.q.UnschedulePublishedPost(ctx, storage.UnschedulePublishedPostParams{
+		ID: poid, ProjectID: pid,
+	})
+	if err != nil {
+		return nil, ErrPostNotScheduled
+	}
+
+	return postFromUnschedule(post), nil
+}
+
+// ExecutePublish is called by the river worker to publish a scheduled post.
+// It checks that the post is still in "scheduled" status before proceeding.
+func (s *Post) ExecutePublish(ctx context.Context, projectID, postID string) ([]PlatformPublishResult, error) {
+	pid, err := uuid.Parse(projectID)
+	if err != nil {
+		return nil, ErrPostNotFound
+	}
+	poid, err := uuid.Parse(postID)
+	if err != nil {
+		return nil, ErrPostNotFound
+	}
+
+	post, err := s.q.GetPublishedPostByID(ctx, storage.GetPublishedPostByIDParams{
+		ID: poid, ProjectID: pid,
+	})
+	if err != nil {
+		return nil, ErrPostNotFound
+	}
+
+	// If the post was unscheduled (reverted to draft), skip silently.
+	if post.Status != storage.PostStatusScheduled {
+		return nil, nil
+	}
+
+	if len(post.Platforms) == 0 {
+		return nil, ErrNoPlatforms
+	}
+
+	// Set status to publishing.
+	_, err = s.q.UpdatePublishedPostStatus(ctx, storage.UpdatePublishedPostStatusParams{
+		ID: poid, ProjectID: pid, Status: storage.PostStatusPublishing,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("setting publishing status: %w", err)
+	}
+
+	// Publish to each platform (same logic as Publish).
+	results := make([]PlatformPublishResult, len(post.Platforms))
+	anyFailed := false
+
+	for i, platform := range post.Platforms {
+		results[i] = PlatformPublishResult{Platform: platform}
+
+		conn, err := s.platformSvc.GetConnectionForPublish(ctx, projectID, platform)
+		if err != nil {
+			results[i].Error = fmt.Sprintf("no enabled connection for %s", platform)
+			anyFailed = true
+			continue
+		}
+
+		adapterKey := conn.Platform + ":" + conn.Method
+		adapter, err := s.registry.Get(adapterKey)
+		if err != nil {
+			results[i].Error = fmt.Sprintf("unsupported platform/method: %s", adapterKey)
+			anyFailed = true
+			continue
+		}
+
+		pubContent := integration.PublishContent{
+			Title:      post.Title,
+			Body:       post.Content,
+			URL:        post.Url,
+			PostType:   string(post.PostType),
+			ReplyToURL: post.ReplyToUrl,
+		}
+		if pubContent.Title == "" && pubContent.Body == "" {
+			pubContent.Body = post.Content
+		}
+
+		result, err := adapter.Publish(ctx, pubContent, conn.Credentials)
+		if err != nil {
+			log.Printf("publish: %s (%s) failed for post %s: %v", platform, conn.Method, postID, err)
+			results[i].Error = err.Error()
+			anyFailed = true
+			continue
+		}
+
+		results[i].Success = true
+		results[i].PostID = result.PlatformPostID
+		results[i].URL = result.URL
+
+		now := time.Now()
+		s.q.CreatePostPlatformResult(ctx, storage.CreatePostPlatformResultParams{
+			PostID:         poid,
+			Platform:       platform,
+			PlatformPostID: result.PlatformPostID,
+			PlatformUrl:    result.URL,
+			Success:        true,
+			PublishedAt:    pgtype.Timestamptz{Time: now, Valid: true},
+		})
+	}
+
+	for _, r := range results {
+		if !r.Success && r.Error != "" {
+			s.q.CreatePostPlatformResult(ctx, storage.CreatePostPlatformResultParams{
+				PostID:       poid,
+				Platform:     r.Platform,
+				Success:      false,
+				ErrorMessage: r.Error,
+			})
+		}
+	}
+
+	if anyFailed {
+		s.q.UpdatePublishedPostStatus(ctx, storage.UpdatePublishedPostStatusParams{
+			ID: poid, ProjectID: pid, Status: storage.PostStatusFailed,
+		})
+		return results, ErrPublishFailed
+	}
+
+	s.q.SetPublishedPostPublished(ctx, storage.SetPublishedPostPublishedParams{
+		ID: poid, ProjectID: pid,
+	})
+	return results, nil
+}
+
 func makePostInfo(id, projectID uuid.UUID, title, content, url string, postType storage.PostType, platforms []string, replyToURL string, scheduledAt, publishedAt pgtype.Timestamptz, status storage.PostStatus, createdAt, updatedAt pgtype.Timestamptz) *PostInfo {
 	info := &PostInfo{
 		ID:         id.String(),
@@ -451,5 +648,13 @@ func postFromStatus(p storage.UpdatePublishedPostStatusRow) *PostInfo {
 }
 
 func postFromPublished(p storage.SetPublishedPostPublishedRow) *PostInfo {
+	return makePostInfo(p.ID, p.ProjectID, p.Title, p.Content, p.Url, p.PostType, p.Platforms, p.ReplyToUrl, p.ScheduledAt, p.PublishedAt, p.Status, p.CreatedAt, p.UpdatedAt)
+}
+
+func postFromSchedule(p storage.SchedulePublishedPostRow) *PostInfo {
+	return makePostInfo(p.ID, p.ProjectID, p.Title, p.Content, p.Url, p.PostType, p.Platforms, p.ReplyToUrl, p.ScheduledAt, p.PublishedAt, p.Status, p.CreatedAt, p.UpdatedAt)
+}
+
+func postFromUnschedule(p storage.UnschedulePublishedPostRow) *PostInfo {
 	return makePostInfo(p.ID, p.ProjectID, p.Title, p.Content, p.Url, p.PostType, p.Platforms, p.ReplyToUrl, p.ScheduledAt, p.PublishedAt, p.Status, p.CreatedAt, p.UpdatedAt)
 }

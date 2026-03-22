@@ -10,6 +10,9 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/riverqueue/river"
+	"github.com/riverqueue/river/riverdriver/riverpgxv5"
+	"github.com/riverqueue/river/rivermigrate"
 
 	"github.com/werd-platform/werd/src/go/api/internal/config"
 	"github.com/werd-platform/werd/src/go/api/internal/handler"
@@ -17,6 +20,7 @@ import (
 	"github.com/werd-platform/werd/src/go/api/internal/router"
 	"github.com/werd-platform/werd/src/go/api/internal/service"
 	"github.com/werd-platform/werd/src/go/api/internal/storage"
+	"github.com/werd-platform/werd/src/go/api/internal/worker"
 )
 
 func main() {
@@ -50,6 +54,17 @@ func main() {
 	defer pool.Close()
 	log.Println("database connected")
 
+	// River job queue: run migrations (idempotent).
+	riverDriver := riverpgxv5.New(pool)
+	migrator, err := rivermigrate.New(riverDriver, nil)
+	if err != nil {
+		log.Fatalf("river migrator: %v", err)
+	}
+	if _, err := migrator.Migrate(ctx, rivermigrate.DirectionUp, nil); err != nil {
+		log.Fatalf("river migrate: %v", err)
+	}
+	log.Println("river migrations complete")
+
 	// Storage and services.
 	queries := storage.New(pool)
 	authService := service.NewAuth(queries, cfg.JWTSecret)
@@ -77,6 +92,27 @@ func main() {
 	monitorSourceService := service.NewMonitorSource(queries)
 	platformService := service.NewPlatform(queries, adapterRegistry)
 	postService := service.NewPost(queries, platformService, adapterRegistry)
+
+	// River client + workers.
+	workers := river.NewWorkers()
+	river.AddWorker(workers, &worker.PublishPostWorker{
+		Publish: func(ctx context.Context, projectID, postID string) error {
+			_, err := postService.ExecutePublish(ctx, projectID, postID)
+			return err
+		},
+	})
+
+	riverClient, err := river.NewClient(riverDriver, &river.Config{
+		Queues: map[string]river.QueueConfig{
+			river.QueueDefault: {MaxWorkers: 10},
+		},
+		Workers: workers,
+	})
+	if err != nil {
+		log.Fatalf("river client: %v", err)
+	}
+	postService.SetRiverClient(riverClient)
+
 	processingRuleService := service.NewProcessingRuleService(queries)
 
 	// LLM client (optional).
@@ -116,6 +152,11 @@ func main() {
 		if err := authService.SeedAdmin(ctx, cfg.AdminEmail, cfg.AdminPassword); err != nil {
 			log.Fatalf("seed admin: %v", err)
 		}
+	}
+
+	// Start river job processing.
+	if err := riverClient.Start(ctx); err != nil {
+		log.Fatalf("river start: %v", err)
 	}
 
 	// Start background goroutines.
@@ -159,6 +200,9 @@ func main() {
 	defer cancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		log.Fatalf("shutdown: %v", err)
+	}
+	if err := riverClient.Stop(shutdownCtx); err != nil {
+		log.Printf("river stop: %v", err)
 	}
 	log.Println("stopped")
 }

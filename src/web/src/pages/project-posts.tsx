@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { useParams, Link } from "react-router";
-import { usePosts, useCreatePost, useUpdatePost, useDeletePost, usePublishPost, useSetPostMonitor } from "@/hooks/use-posts";
+import { usePosts, useCreatePost, useUpdatePost, useDeletePost, usePublishPost, useUnschedulePost, useSetPostMonitor } from "@/hooks/use-posts";
 import { useConnections } from "@/hooks/use-connections";
 import InfoIcon from "@/components/info-icon";
 import { publishPost as publishHelp } from "@/lib/help-content";
@@ -18,9 +18,11 @@ const PLATFORM_LABELS: Record<string, string> = {
   bluesky: "Bluesky",
   reddit: "Reddit",
   hn: "Hacker News",
+  gmail: "Gmail",
+  google_groups: "Google Groups",
 };
 
-const ALL_PLATFORMS = ["bluesky", "reddit", "hn"];
+const ALL_PLATFORMS = ["bluesky", "reddit", "hn", "gmail", "google_groups"];
 
 const PAGE_SIZE = 20;
 
@@ -40,6 +42,7 @@ export default function PostsPage() {
   const updatePost = useUpdatePost(projectId!);
   const deletePost = useDeletePost(projectId!);
   const publishPost = usePublishPost(projectId!);
+  const unschedulePost = useUnschedulePost(projectId!);
   const setMonitor = useSetPostMonitor(projectId!);
 
   const [showCompose, setShowCompose] = useState(false);
@@ -52,9 +55,11 @@ export default function PostsPage() {
   const [publishResults, setPublishResults] = useState<PlatformPublishResult[] | null>(null);
   const [isReply, setIsReply] = useState(false);
   const [replyToURL, setReplyToURL] = useState("");
+  const [schedulePostId, setSchedulePostId] = useState<string | null>(null);
+  const [scheduleDateTime, setScheduleDateTime] = useState("");
 
   // Show platforms that can publish — API-publishable or browser-publishable connections.
-  const API_PUB = new Set(["bluesky", "reddit"]);
+  const API_PUB = new Set(["bluesky", "reddit", "gmail", "google_groups"]);
   const BROWSER_PUB = new Set(["bluesky", "reddit", "hn"]);
   const availablePlatforms = connections
     ?.filter((c) => c.enabled && ((c.method === "api" && API_PUB.has(c.platform)) || (c.method === "browser" && BROWSER_PUB.has(c.platform))))
@@ -135,10 +140,23 @@ export default function PostsPage() {
   }
 
   function handlePublish(postId: string) {
-    publishPost.mutate(postId, {
+    publishPost.mutate({ postId }, {
       onSuccess: (res) => setPublishResults(res.results),
       onError: () => setPublishResults(null),
     });
+  }
+
+  function handleSchedule(postId: string) {
+    if (!scheduleDateTime) return;
+    const scheduledAt = new Date(scheduleDateTime).toISOString();
+    publishPost.mutate({ postId, scheduledAt }, {
+      onSuccess: () => { setSchedulePostId(null); setScheduleDateTime(""); },
+      onError: () => {},
+    });
+  }
+
+  function handleUnschedule(postId: string) {
+    unschedulePost.mutate(postId);
   }
 
   function handleDelete(postId: string) {
@@ -345,6 +363,7 @@ export default function PostsPage() {
         >
           <option value="">All statuses</option>
           <option value="draft">Draft</option>
+          <option value="scheduled">Scheduled</option>
           <option value="published">Published</option>
           <option value="failed">Failed</option>
         </select>
@@ -391,7 +410,7 @@ export default function PostsPage() {
                   {post.content.length > 200 ? post.content.slice(0, 200) + "..." : post.content}
                 </p>
               </Link>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 {post.status === "draft" && (
                   <>
                     <span className="inline-flex items-center gap-1">
@@ -404,6 +423,54 @@ export default function PostsPage() {
                       </button>
                       <InfoIcon tooltip={publishHelp.tooltip}>{publishHelp.modal}</InfoIcon>
                     </span>
+                    {schedulePostId === post.id ? (
+                      <span className="inline-flex items-center gap-1">
+                        <input
+                          type="datetime-local"
+                          value={scheduleDateTime}
+                          onChange={(e) => setScheduleDateTime(e.target.value)}
+                          min={new Date().toISOString().slice(0, 16)}
+                          className="rounded border px-2 py-1 text-xs"
+                        />
+                        <button
+                          onClick={() => handleSchedule(post.id)}
+                          disabled={!scheduleDateTime || publishPost.isPending}
+                          className="rounded bg-indigo-600 px-2 py-1 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                        >
+                          Confirm
+                        </button>
+                        <button onClick={() => { setSchedulePostId(null); setScheduleDateTime(""); }} className="text-xs text-gray-500 hover:text-gray-700">
+                          Cancel
+                        </button>
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => setSchedulePostId(post.id)}
+                        className="rounded border border-indigo-300 px-3 py-1 text-xs text-indigo-600 hover:bg-indigo-50"
+                      >
+                        Schedule
+                      </button>
+                    )}
+                    <button onClick={() => startEdit(post)} className="rounded px-2 py-1 text-xs text-blue-600 hover:bg-blue-50">
+                      Edit
+                    </button>
+                    <button onClick={() => handleDelete(post.id)} className="rounded px-2 py-1 text-xs text-red-600 hover:bg-red-50">
+                      Delete
+                    </button>
+                  </>
+                )}
+                {post.status === "scheduled" && (
+                  <>
+                    <span className="text-xs text-blue-600">
+                      Scheduled: {post.scheduled_at ? new Date(post.scheduled_at).toLocaleString() : ""}
+                    </span>
+                    <button
+                      onClick={() => handleUnschedule(post.id)}
+                      disabled={unschedulePost.isPending}
+                      className="rounded border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      Cancel Schedule
+                    </button>
                     <button onClick={() => startEdit(post)} className="rounded px-2 py-1 text-xs text-blue-600 hover:bg-blue-50">
                       Edit
                     </button>

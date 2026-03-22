@@ -918,17 +918,67 @@ paths:
           type: string
           format: uuid
     post:
-      summary: Publish post to all target platforms
+      summary: Publish or schedule a post
+      description: |
+        Publishes a post immediately, or schedules it for future publishing.
+        If `scheduled_at` is provided and in the future, the post status changes to "scheduled"
+        and a background job will publish it at the specified time.
+        If `scheduled_at` is omitted or in the past, the post is published immediately.
       operationId: publishPost
       security:
         - bearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                scheduled_at:
+                  type: string
+                  format: date-time
+                  description: Schedule publish for this time (must be in the future)
       responses:
         "200":
-          description: Publish results
+          description: Publish or schedule results
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/PublishResponse"
+
+  /projects/{id}/posts/{postID}/unschedule:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: postID
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      summary: Cancel a scheduled post
+      description: Reverts a scheduled post back to draft status. The background job will detect the status change and skip publishing.
+      operationId: unschedulePost
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Post reverted to draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Post"
+        "409":
+          description: Post is not in scheduled status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
 
   /projects/{id}/posts/{postID}/monitor:
     parameters:

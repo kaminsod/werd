@@ -462,7 +462,12 @@ func (h *PlatformHandler) DeletePost(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, messageResponse{Message: "post deleted"})
 }
 
+type publishRequest struct {
+	ScheduledAt *time.Time `json:"scheduled_at"`
+}
+
 // PublishPost handles POST /projects/{id}/posts/{postID}/publish.
+// Accepts optional JSON body { "scheduled_at": "..." } to schedule for future.
 func (h *PlatformHandler) PublishPost(w http.ResponseWriter, r *http.Request) {
 	projectID := middleware.ProjectIDFromContext(r.Context())
 	role := middleware.ProjectRoleFromContext(r.Context())
@@ -473,13 +478,41 @@ func (h *PlatformHandler) PublishPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Parse optional body for scheduled_at.
+	var req publishRequest
+	if r.Body != nil && r.ContentLength > 0 {
+		json.NewDecoder(r.Body).Decode(&req)
+	}
+
+	// If scheduled_at is set and in the future, schedule instead of publishing immediately.
+	if req.ScheduledAt != nil && req.ScheduledAt.After(time.Now()) {
+		post, err := h.postSvc.Schedule(r.Context(), projectID, postID, *req.ScheduledAt)
+		if err != nil {
+			switch {
+			case errors.Is(err, service.ErrPostNotFound):
+				writeJSON(w, http.StatusNotFound, messageResponse{Message: "post not found"})
+			case errors.Is(err, service.ErrPostNotDraft):
+				writeJSON(w, http.StatusConflict, messageResponse{Message: "only draft posts can be scheduled"})
+			case errors.Is(err, service.ErrSchedulePast):
+				writeJSON(w, http.StatusBadRequest, messageResponse{Message: "scheduled time must be in the future"})
+			default:
+				writeError(w, http.StatusInternalServerError, "schedule failed", err)
+			}
+			return
+		}
+		writeJSON(w, http.StatusOK, publishResponse{
+			Post: *postInfoToResponse(post), Results: []service.PlatformPublishResult{},
+		})
+		return
+	}
+
 	results, err := h.postSvc.Publish(r.Context(), projectID, postID)
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrPostNotFound):
 			writeJSON(w, http.StatusNotFound, messageResponse{Message: "post not found"})
 		case errors.Is(err, service.ErrPostNotDraft):
-			writeJSON(w, http.StatusConflict, messageResponse{Message: "only draft posts can be published"})
+			writeJSON(w, http.StatusConflict, messageResponse{Message: "only draft or failed posts can be published"})
 		case errors.Is(err, service.ErrNoPlatforms):
 			writeJSON(w, http.StatusBadRequest, messageResponse{Message: "no platforms specified"})
 		case errors.Is(err, service.ErrPublishFailed):
@@ -506,6 +539,33 @@ func (h *PlatformHandler) PublishPost(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, publishResponse{
 		Post: *postInfoToResponse(post), Results: results,
 	})
+}
+
+// CancelSchedule handles POST /projects/{id}/posts/{postID}/unschedule.
+func (h *PlatformHandler) CancelSchedule(w http.ResponseWriter, r *http.Request) {
+	projectID := middleware.ProjectIDFromContext(r.Context())
+	role := middleware.ProjectRoleFromContext(r.Context())
+	postID := chi.URLParam(r, "postID")
+
+	if !requireRole(role, storage.ProjectRoleOwner, storage.ProjectRoleAdmin, storage.ProjectRoleMember) {
+		writeJSON(w, http.StatusForbidden, messageResponse{Message: "member role or higher required"})
+		return
+	}
+
+	post, err := h.postSvc.Unschedule(r.Context(), projectID, postID)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrPostNotFound):
+			writeJSON(w, http.StatusNotFound, messageResponse{Message: "post not found"})
+		case errors.Is(err, service.ErrPostNotScheduled):
+			writeJSON(w, http.StatusConflict, messageResponse{Message: "post is not scheduled"})
+		default:
+			writeError(w, http.StatusInternalServerError, "unschedule failed", err)
+		}
+		return
+	}
+
+	writeJSON(w, http.StatusOK, postInfoToResponse(post))
 }
 
 // ============================================================================

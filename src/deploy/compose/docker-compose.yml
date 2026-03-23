@@ -14,12 +14,18 @@ services:
       - WERD_LLM_API_URL=${WERD_LLM_API_URL:-}
       - WERD_LLM_API_KEY=${WERD_LLM_API_KEY:-}
       - WERD_LLM_MODEL=${WERD_LLM_MODEL:-}
+      - WERD_CHANGEDETECT_URL=${WERD_CHANGEDETECT_URL:-http://changedetect:5000}
+      - WERD_RSSHUB_URL=${WERD_RSSHUB_URL:-http://rsshub:1200}
     # ports:
     #   - "8090:8090"  # Uncomment for direct access bypassing Caddy (debugging)
     depends_on:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      changedetect:
+        condition: service_healthy
+      rsshub:
         condition: service_healthy
     networks:
       - werd-net

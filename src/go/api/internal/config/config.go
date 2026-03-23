@@ -13,6 +13,8 @@ type Config struct {
 	InternalAPIKey string
 	NtfyURL           string
 	BrowserServiceURL string // optional: enables browser adapters
+	ChangedetectURL   string // optional: enables web source provisioning
+	RSSHubURL         string // optional: enables RSSHub route expansion
 
 	// LLM integration (OpenAI-compatible endpoint).
 	LLMApiURL string // optional: enables LLM classification
@@ -33,6 +35,8 @@ func Load() (*Config, error) {
 		InternalAPIKey: os.Getenv("WERD_INTERNAL_API_KEY"),
 		NtfyURL:           envOr("WERD_NTFY_URL", "http://ntfy:80"),
 		BrowserServiceURL: os.Getenv("BROWSER_SERVICE_URL"),
+		ChangedetectURL:   envOr("WERD_CHANGEDETECT_URL", "http://changedetect:5000"),
+		RSSHubURL:         envOr("WERD_RSSHUB_URL", "http://rsshub:1200"),
 		LLMApiURL:         os.Getenv("WERD_LLM_API_URL"),
 		LLMApiKey:         os.Getenv("WERD_LLM_API_KEY"),
 		LLMModel:          os.Getenv("WERD_LLM_MODEL"),

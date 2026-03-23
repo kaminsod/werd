@@ -89,7 +89,14 @@ func main() {
 		adapterRegistry.Register("hn:browser", integration.NewBrowserAdapter(cfg.BrowserServiceURL, "hn", cfg.InternalAPIKey))
 	}
 
-	monitorSourceService := service.NewMonitorSource(queries)
+	// Changedetection.io client (optional).
+	var cdClient *integration.ChangedetectClient
+	if cfg.ChangedetectURL != "" {
+		cdClient = integration.NewChangedetectClient(cfg.ChangedetectURL, "")
+		log.Printf("changedetection.io integration enabled: %s", cfg.ChangedetectURL)
+	}
+
+	monitorSourceService := service.NewMonitorSource(queries, cdClient)
 	platformService := service.NewPlatform(queries, adapterRegistry)
 	postService := service.NewPost(queries, platformService, adapterRegistry)
 
@@ -144,6 +151,14 @@ func main() {
 	sourceMonitorRegistry.Register("hn:account", integration.NewHNAccountMonitor())
 	sourceMonitorRegistry.Register("bluesky:account", integration.NewBlueskyAccountMonitor())
 	sourceMonitorRegistry.Register("bluesky:user", integration.NewBlueskyUserMonitor())
+
+	if cdClient != nil {
+		sourceMonitorRegistry.Register("web:default", integration.NewChangedetectMonitor(cdClient))
+	}
+	if cfg.RSSHubURL != "" {
+		sourceMonitorRegistry.Register("rss:default", integration.NewRSSMonitor(cfg.RSSHubURL))
+		log.Printf("RSSHub integration enabled: %s", cfg.RSSHubURL)
+	}
 
 	sourcePoller := service.NewSourcePoller(queries, platformService, alertService, sourceMonitorRegistry, processingPipeline, 60*time.Second)
 

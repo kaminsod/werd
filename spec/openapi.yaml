@@ -1491,6 +1491,13 @@ components:
           $ref: "#/components/schemas/MonitorType"
         config:
           type: object
+          description: |
+            Config varies by source type:
+            - **reddit**: `{ mode, subreddit?, thread_id?, check_inbox?, check_mentions?, poll_interval_secs }`
+            - **hn**: `{ mode, item_id?, username?, poll_interval_secs }`
+            - **bluesky**: `{ mode, handle?, poll_interval_secs }`
+            - **web**: `{ urls: string[], watch_ids?: string[], poll_interval_secs }` — URLs to monitor via changedetection.io. `watch_ids` are auto-provisioned.
+            - **rss**: `{ feeds: string[], poll_interval_secs }` — RSS/Atom feed URLs. Paths starting with `/` are expanded as RSSHub routes.
         enabled:
           type: boolean
         created_at:
@@ -1499,6 +1506,41 @@ components:
         updated_at:
           type: string
           format: date-time
+
+    WebSourceConfig:
+      type: object
+      description: Config for web (changedetection.io) monitor sources
+      required: [urls]
+      properties:
+        urls:
+          type: array
+          items:
+            type: string
+          description: URLs to monitor for changes
+        watch_ids:
+          type: array
+          items:
+            type: string
+          description: Auto-provisioned changedetection.io watch UUIDs (read-only)
+        poll_interval_secs:
+          type: integer
+          default: 900
+          description: How often to poll changedetection.io for new changes
+
+    RSSSourceConfig:
+      type: object
+      description: Config for RSS/Atom monitor sources
+      required: [feeds]
+      properties:
+        feeds:
+          type: array
+          items:
+            type: string
+          description: Feed URLs. Paths starting with "/" are expanded as RSSHub routes (e.g. /github/repos/torvalds)
+        poll_interval_secs:
+          type: integer
+          default: 600
+          description: How often to fetch feeds for new items
 
     Connection:
       type: object

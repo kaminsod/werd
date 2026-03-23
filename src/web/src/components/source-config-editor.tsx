@@ -80,12 +80,14 @@ function getFields(sourceType: MonitorType, mode: string): FieldDef[] {
   }
   if (sourceType === "web") {
     return [
-      { key: "urls", label: "URLs (one per line)", type: "text", placeholder: "https://example.com/blog", hint: "Web pages to monitor via changedetection.io. Enter one URL per line." },
+      { key: "urls", label: "URLs (one per line)", type: "text", placeholder: "https://example.com/blog", hint: "Web pages to monitor for changes via changedetection.io. Watches are automatically provisioned — you'll get alerts when page content changes." },
+      { key: "poll_interval_secs", label: "Poll interval (seconds)", type: "number", placeholder: "900" },
     ];
   }
   if (sourceType === "rss") {
     return [
-      { key: "feeds", label: "Feed URLs (one per line)", type: "text", placeholder: "https://example.com/feed.xml", hint: "RSS/Atom feeds to monitor. Enter one feed URL per line." },
+      { key: "feeds", label: "Feed URLs (one per line)", type: "text", placeholder: "/github/repos/torvalds\nhttps://blog.example.com/feed.xml", hint: "RSS/Atom feed URLs. Paths starting with \"/\" are expanded as RSSHub routes (e.g. /github/repos/torvalds). Full URLs are fetched directly." },
+      { key: "poll_interval_secs", label: "Poll interval (seconds)", type: "number", placeholder: "600" },
     ];
   }
   if (sourceType === "github") {
@@ -175,6 +177,8 @@ export function defaultConfigForType(type: MonitorType): string {
     if (type === "hn") return JSON.stringify({ mode, poll_interval_secs: 300 }, null, 2);
     if (type === "bluesky") return JSON.stringify({ mode, poll_interval_secs: 300 }, null, 2);
   }
+  if (type === "web") return JSON.stringify({ urls: [], poll_interval_secs: 900 }, null, 2);
+  if (type === "rss") return JSON.stringify({ feeds: [], poll_interval_secs: 600 }, null, 2);
   return "{}";
 }
 
